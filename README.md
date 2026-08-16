@@ -242,6 +242,72 @@ development and production diverging.
 > `Storage__Provider=AzureBlob` — App Service's local disk is ephemeral and not shared between
 > instances.
 
+### Manual setup with Entra-only SQL and managed identity (no passwords, near-zero cost)
+
+If the App Service and Azure SQL server already exist and Entra authentication is enabled on
+the server, both the database and Blob Storage can be reached with **no secret stored
+anywhere** — App Service's own system-assigned managed identity is the credential for both.
+`Microsoft.Data.SqlClient` and the Blob SDK both authenticate through `Azure.Identity` directly
+from the connection string / account URL; no code change is needed to use this path.
+
+**1. Turn on the App Service's managed identity** (skip if already on):
+
+```bash
+az webapp identity assign --name <app-service-name> --resource-group <rg>
+```
+
+Note the `principalId` it prints — App Service's identity's *display name* in Entra is the
+app's own name, which is what the SQL grant below uses.
+
+**2. Grant that identity a database user**, connected as the server's Entra admin (Query editor
+in the portal, or `sqlcmd`/Azure Data Studio with Entra MFA auth):
+
+```sql
+CREATE USER [<app-service-name>] FROM EXTERNAL PROVIDER;
+ALTER ROLE db_datareader ADD MEMBER [<app-service-name>];
+ALTER ROLE db_datawriter ADD MEMBER [<app-service-name>];
+-- db_ddladmin is required because EF Core migrations run automatically at startup.
+ALTER ROLE db_ddladmin ADD MEMBER [<app-service-name>];
+```
+
+**3. Create the storage account and container** for documents, then grant the same identity
+`Storage Blob Data Contributor` — a role, not a key:
+
+```bash
+az storage account create --name <storageaccountname> --resource-group <rg> \
+  --sku Standard_LRS --kind StorageV2 --access-tier Hot \
+  --min-tls-version TLS1_2 --allow-blob-public-access false
+
+az storage container create --account-name <storageaccountname> --name documents --auth-mode login
+
+az role assignment create \
+  --assignee-object-id <principalId from step 1> --assignee-principal-type ServicePrincipal \
+  --role "Storage Blob Data Contributor" \
+  --scope "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<storageaccountname>"
+```
+
+`Standard_LRS` is the cheapest redundancy tier; for a low-traffic association's documents the
+monthly cost is a few cents of storage plus fractions of a cent per request — there is no fixed
+minimum fee.
+
+**4. App Service → Configuration → Application settings:**
+
+```
+Database__Provider           = SqlServer
+ConnectionStrings__Default    = Server=tcp:<sql-server-name>.database.windows.net,1433;Database=<db-name>;Authentication=Active Directory Managed Identity;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;
+Jwt__SigningKey               = <32+ random characters>
+Seed__Enabled                 = false
+Cors__AllowedOrigins__0       = https://<app-service-name>.azurewebsites.net
+Storage__Provider             = AzureBlob
+Storage__AccountUrl           = https://<storageaccountname>.blob.core.windows.net
+Storage__ContainerName        = documents
+```
+
+No `Storage__ConnectionString` and no SQL password appear anywhere — `Storage__AccountUrl`
+(not `Storage__ConnectionString`) is what routes Blob access through the managed identity
+instead of an account key. Restart the App Service after saving so it picks up the new
+settings and connects with its own identity on the next request.
+
 ---
 
 ## Enabling Google sign-in

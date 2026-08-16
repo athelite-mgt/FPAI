@@ -1,4 +1,5 @@
 using Azure;
+using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using FpaiConnect.Application.Abstractions;
@@ -20,12 +21,29 @@ public class AzureBlobFileStorage : IFileStorage
 
     public AzureBlobFileStorage(IConfiguration config)
     {
-        var connectionString = config["Storage:ConnectionString"]
-            ?? throw new InvalidOperationException(
-                "Storage:ConnectionString is required when Storage:Provider is AzureBlob.");
         var containerName = config["Storage:ContainerName"] ?? "documents";
+        var connectionString = config["Storage:ConnectionString"];
+        var accountUrl = config["Storage:AccountUrl"];
 
-        _container = new BlobContainerClient(connectionString, containerName);
+        if (!string.IsNullOrWhiteSpace(connectionString))
+        {
+            // Account-key auth, mainly useful for a local Azurite emulator.
+            _container = new BlobContainerClient(connectionString, containerName);
+        }
+        else if (!string.IsNullOrWhiteSpace(accountUrl))
+        {
+            // No key anywhere: the App Service's managed identity authenticates directly,
+            // the same credential chain used for Entra SQL auth. In production this needs
+            // no secret at all — only "Storage Blob Data Contributor" on the storage account.
+            _container = new BlobContainerClient(new Uri($"{accountUrl.TrimEnd('/')}/{containerName}"),
+                new DefaultAzureCredential());
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "Storage:AccountUrl (managed identity) or Storage:ConnectionString (key-based, " +
+                "for local development against Azurite) is required when Storage:Provider is AzureBlob.");
+        }
     }
 
     private async Task EnsureContainerAsync(CancellationToken ct)

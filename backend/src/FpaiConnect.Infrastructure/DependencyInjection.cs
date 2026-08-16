@@ -32,6 +32,12 @@ public static class DependencyInjection
                     sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName);
                     sql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
                 });
+
+                // Entra-authenticated servers carry no password anywhere: the connection
+                // string just names the identity mode, and Microsoft.Data.SqlClient asks
+                // Azure.Identity for a token itself using the App Service's managed identity.
+                // Locally (Azure CLI / Visual Studio login) the same mode falls back to that
+                // developer credential, so no code path needs a SQL login at all.
             }
             else
             {
