@@ -1,0 +1,91 @@
+name: Deploy to Azure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: prod
+        type: choice
+        options: [dev, test, prod]
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '22.x'
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+# Required repository secrets:
+#   AZURE_CREDENTIALS   — output of `az ad sp create-for-rbac --sdk-auth`
+#   AZURE_RESOURCE_GROUP
+#   AZURE_WEBAPP_NAME   — from the Bicep output `webAppName`
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build the SPA
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      # The API serves the SPA from wwwroot, so one App Service hosts both and there is
+      # no cross-origin request in production.
+      - name: Stage the SPA inside the API
+        run: |
+          rm -rf backend/src/FpaiConnect.Api/wwwroot
+          mkdir -p backend/src/FpaiConnect.Api/wwwroot
+          cp -r frontend/dist/* backend/src/FpaiConnect.Api/wwwroot/
+
+      - name: Publish the API
+        working-directory: backend
+        run: dotnet publish src/FpaiConnect.Api -c Release -o ../publish
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy the ARM template
+        uses: azure/arm-deploy@v2
+        with:
+          resourceGroupName: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          template: deploy/main.bicep
+          parameters: >-
+            environmentName=${{ inputs.environment }}
+            sqlAdminLogin=${{ secrets.SQL_ADMIN_LOGIN }}
+            sqlAdminPassword=${{ secrets.SQL_ADMIN_PASSWORD }}
+            jwtSigningKey=${{ secrets.JWT_SIGNING_KEY }}
+            googleClientId=${{ secrets.GOOGLE_CLIENT_ID }}
+
+      - name: Deploy the application
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          package: publish
+
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf "https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net/api/health"; then
+              echo "Deployment is healthy."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "The deployed app did not become healthy."
+          exit 1

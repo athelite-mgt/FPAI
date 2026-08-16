@@ -1,0 +1,51 @@
+# .NET
+bin/
+obj/
+publish/
+*.user
+*.suo
+
+# Local database (development only)
+*.db
+*.db-shm
+*.db-wal
+
+# Uploaded documents (development only)
+backend/src/FpaiConnect.Api/App_Data/
+backend/src/FpaiConnect.Api/wwwroot/
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+
+# tsc -b emits JS beside the .ts sources; only the TypeScript is source.
+frontend/vite.config.js
+frontend/playwright.config.js
+frontend/src/**/*.js
+frontend/e2e/**/*.js
+
+# Test output
+TestResults/
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+# Environment and secrets — never commit these
+.env
+.env.local
+.env.*.local
+appsettings.Local.json
+appsettings.Production.json
+*.pfx
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.swp

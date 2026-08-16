@@ -1,0 +1,336 @@
+@import 'tailwindcss';
+
+/*
+  FPAI Connect theming.
+
+  Three independent axes, all stored per user on the server:
+    data-theme  = light | dark      (resolved from the user's System/Light/Dark preference)
+    data-scheme = pitch | saffron | royal | violet | slate | crimson
+    data-font   = sans | grotesk | serif | rounded | mono | legible
+
+  Components never name a colour. They use the semantic tokens below, so adding a scheme
+  means adding one block here and one entry in lib/theme.ts — no component changes.
+
+    --accent-solid / -hover / -active   filled controls (buttons, active nav)
+    --accent-on-solid                   text drawn on top of those
+    --accent-text                       accent-coloured text on a normal surface
+    --accent-soft-bg / -border / -text  tinted badges and highlights
+    --chrome*                           the dark application sidebar
+
+  Every pairing below was chosen so that --accent-on-solid on --accent-solid, and
+  --accent-text on --surface, both clear WCAG AA.
+*/
+
+@theme {
+  --font-sans: var(--font-ui);
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+}
+
+/* ---------------------------------------------------------------- font stacks */
+:root,
+:root[data-font='sans'] {
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+:root[data-font='grotesk'] {
+  --font-ui: 'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', sans-serif;
+}
+:root[data-font='serif'] {
+  --font-ui: Georgia, Cambria, 'Times New Roman', 'Liberation Serif', serif;
+}
+:root[data-font='rounded'] {
+  --font-ui: ui-rounded, 'SF Pro Rounded', 'Segoe UI Variable', 'Nunito', system-ui, sans-serif;
+}
+:root[data-font='mono'] {
+  --font-ui: ui-monospace, 'SF Mono', 'Cascadia Mono', 'DejaVu Sans Mono', Menlo, monospace;
+}
+/* Wide letterforms and open apertures; easier at small sizes and for low vision. */
+:root[data-font='legible'] {
+  --font-ui: Verdana, Tahoma, 'DejaVu Sans', 'Segoe UI', sans-serif;
+}
+
+/* ---------------------------------------------------------------- neutrals */
+:root {
+  --surface: #f7f8fa;
+  --surface-raised: #ffffff;
+  --surface-sunken: #eef1f5;
+  --border: #dde3ea;
+  --border-strong: #c3ccd8;
+  --text: #121b26;
+  --text-muted: #5b6b80;
+  --text-subtle: #8494a8;
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --surface: #0a1017;
+  --surface-raised: #121b26;
+  --surface-sunken: #070c11;
+  --border: #24313f;
+  --border-strong: #33455a;
+  --text: #e9eef4;
+  --text-muted: #9aabbf;
+  --text-subtle: #6b7e96;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.3);
+  color-scheme: dark;
+}
+
+/* ---------------------------------------------------------------- schemes: light */
+:root,
+:root[data-scheme='pitch'] {
+  --accent-solid: #128551;
+  --accent-solid-hover: #106a43;
+  --accent-solid-active: #0e452f;
+  --accent-on-solid: #ffffff;
+  --accent-text: #0f6f45;
+  --accent-soft-bg: #eefbf3;
+  --accent-soft-border: #aeeac6;
+  --accent-soft-text: #106a43;
+  --chrome: #121b26;
+  --chrome-hover: #1c2837;
+  --chrome-border: #24313f;
+  --chrome-text: #e9eef4;
+  --chrome-muted: #9dabbd;
+  --chrome-accent: #41c081;
+}
+
+:root[data-scheme='saffron'] {
+  --accent-solid: #c2410c;
+  --accent-solid-hover: #9a3412;
+  --accent-solid-active: #7c2d12;
+  --accent-on-solid: #ffffff;
+  --accent-text: #b03d0b;
+  --accent-soft-bg: #fff7ed;
+  --accent-soft-border: #fed7aa;
+  --accent-soft-text: #9a3412;
+  --chrome: #1c1410;
+  --chrome-hover: #2a1f18;
+  --chrome-border: #3a2c22;
+  --chrome-text: #faf3ee;
+  --chrome-muted: #c4ab9a;
+  --chrome-accent: #fb923c;
+}
+
+:root[data-scheme='royal'] {
+  --accent-solid: #2563eb;
+  --accent-solid-hover: #1d4ed8;
+  --accent-solid-active: #1e40af;
+  --accent-on-solid: #ffffff;
+  --accent-text: #1d4ed8;
+  --accent-soft-bg: #eff6ff;
+  --accent-soft-border: #bfdbfe;
+  --accent-soft-text: #1e40af;
+  --chrome: #101827;
+  --chrome-hover: #1b2637;
+  --chrome-border: #26344a;
+  --chrome-text: #e8eefb;
+  --chrome-muted: #9aabc6;
+  --chrome-accent: #60a5fa;
+}
+
+:root[data-scheme='violet'] {
+  --accent-solid: #7c3aed;
+  --accent-solid-hover: #6d28d9;
+  --accent-solid-active: #5b21b6;
+  --accent-on-solid: #ffffff;
+  --accent-text: #6d28d9;
+  --accent-soft-bg: #f5f3ff;
+  --accent-soft-border: #ddd6fe;
+  --accent-soft-text: #5b21b6;
+  --chrome: #17132a;
+  --chrome-hover: #221c3c;
+  --chrome-border: #2f2750;
+  --chrome-text: #ece9fb;
+  --chrome-muted: #a9a0c9;
+  --chrome-accent: #a78bfa;
+}
+
+:root[data-scheme='slate'] {
+  --accent-solid: #334155;
+  --accent-solid-hover: #1e293b;
+  --accent-solid-active: #0f172a;
+  --accent-on-solid: #ffffff;
+  --accent-text: #334155;
+  --accent-soft-bg: #f1f5f9;
+  --accent-soft-border: #cbd5e1;
+  --accent-soft-text: #1e293b;
+  --chrome: #0f172a;
+  --chrome-hover: #1e293b;
+  --chrome-border: #293548;
+  --chrome-text: #e8edf4;
+  --chrome-muted: #94a3b8;
+  --chrome-accent: #94a3b8;
+}
+
+:root[data-scheme='crimson'] {
+  --accent-solid: #be123c;
+  --accent-solid-hover: #9f1239;
+  --accent-solid-active: #881337;
+  --accent-on-solid: #ffffff;
+  --accent-text: #b8123a;
+  --accent-soft-bg: #fff1f4;
+  --accent-soft-border: #fecdd6;
+  --accent-soft-text: #9f1239;
+  --chrome: #1c1016;
+  --chrome-hover: #2a1820;
+  --chrome-border: #3a222c;
+  --chrome-text: #fbeef1;
+  --chrome-muted: #c69aa6;
+  --chrome-accent: #fb7185;
+}
+
+/* ---------------------------------------------------------------- schemes: dark
+   Filled controls lighten and soft tints become translucent, so accent text keeps
+   its contrast against the near-black surfaces. */
+:root[data-theme='dark'],
+:root[data-theme='dark'][data-scheme='pitch'] {
+  --accent-solid: #1da565;
+  --accent-solid-hover: #41c081;
+  --accent-solid-active: #77d9a5;
+  --accent-on-solid: #04140c;
+  --accent-text: #61cf95;
+  --accent-soft-bg: rgb(29 165 101 / 0.14);
+  --accent-soft-border: rgb(29 165 101 / 0.32);
+  --accent-soft-text: #8ee0b3;
+}
+
+:root[data-theme='dark'][data-scheme='saffron'] {
+  --accent-solid: #f97316;
+  --accent-solid-hover: #fb923c;
+  --accent-solid-active: #fdba74;
+  --accent-on-solid: #1a0d03;
+  --accent-text: #fbaa63;
+  --accent-soft-bg: rgb(249 115 22 / 0.14);
+  --accent-soft-border: rgb(249 115 22 / 0.32);
+  --accent-soft-text: #fdc38f;
+}
+
+:root[data-theme='dark'][data-scheme='royal'] {
+  --accent-solid: #3b82f6;
+  --accent-solid-hover: #60a5fa;
+  --accent-solid-active: #93c5fd;
+  --accent-on-solid: #04101f;
+  --accent-text: #7cb0fb;
+  --accent-soft-bg: rgb(59 130 246 / 0.14);
+  --accent-soft-border: rgb(59 130 246 / 0.32);
+  --accent-soft-text: #a6c9fc;
+}
+
+:root[data-theme='dark'][data-scheme='violet'] {
+  --accent-solid: #8b5cf6;
+  --accent-solid-hover: #a78bfa;
+  --accent-solid-active: #c4b5fd;
+  --accent-on-solid: #0f0620;
+  --accent-text: #b198fb;
+  --accent-soft-bg: rgb(139 92 246 / 0.14);
+  --accent-soft-border: rgb(139 92 246 / 0.32);
+  --accent-soft-text: #c9b8fc;
+}
+
+:root[data-theme='dark'][data-scheme='slate'] {
+  --accent-solid: #64748b;
+  --accent-solid-hover: #94a3b8;
+  --accent-solid-active: #cbd5e1;
+  --accent-on-solid: #05090f;
+  --accent-text: #a9b7c8;
+  --accent-soft-bg: rgb(148 163 184 / 0.14);
+  --accent-soft-border: rgb(148 163 184 / 0.32);
+  --accent-soft-text: #c3cedb;
+}
+
+:root[data-theme='dark'][data-scheme='crimson'] {
+  --accent-solid: #e11d48;
+  --accent-solid-hover: #fb7185;
+  --accent-solid-active: #fda4af;
+  --accent-on-solid: #1c0409;
+  --accent-text: #fb8098;
+  --accent-soft-bg: rgb(225 29 72 / 0.14);
+  --accent-soft-border: rgb(225 29 72 / 0.32);
+  --accent-soft-text: #fda9b8;
+}
+
+/* ---------------------------------------------------------------- base */
+* {
+  border-color: var(--border);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'tnum';
+}
+
+/* Numeric columns line up in tables. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Keyboard users get a visible ring; pointer users do not. */
+:focus-visible {
+  outline: 2px solid var(--accent-solid);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
+  border: 2px solid var(--surface);
+}
+
+@keyframes fpai-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-in {
+  animation: fpai-fade-in 0.18s ease-out;
+}
+
+@keyframes fpai-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.08), transparent);
+  animation: fpai-shimmer 1.4s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FpaiConnect.Api/FpaiConnect.Api.csproj" />
+    <Project Path="src/FpaiConnect.Application/FpaiConnect.Application.csproj" />
+    <Project Path="src/FpaiConnect.Domain/FpaiConnect.Domain.csproj" />
+    <Project Path="src/FpaiConnect.Infrastructure/FpaiConnect.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FpaiConnect.Tests/FpaiConnect.Tests.csproj" />
+  </Folder>
+</Solution>
