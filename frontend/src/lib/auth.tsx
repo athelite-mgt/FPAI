@@ -35,6 +35,7 @@ interface AuthContextValue {
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: (credential: string) => Promise<void>
+  signInWithMicrosoft: (idToken: string) => Promise<void>
   register: (input: {
     fullName: string; email: string; password: string; jobTitle?: string; note?: string
   }) => Promise<RegistrationResult>
@@ -114,6 +115,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const signInWithMicrosoft = useCallback(async (idToken: string) => {
+    try {
+      const { data } = await api.post<AuthResponse>('/auth/microsoft', { idToken })
+      tokenStore.set(data)
+      setUser(data.user)
+    } catch (error) {
+      // A Microsoft account we have not seen registers itself and lands here as pending.
+      const pending = asRegistrationResult(error)
+      if (pending) throw new AccountNotApprovedError(pending)
+      throw error
+    }
+  }, [])
+
   const register = useCallback(async (input: {
     fullName: string; email: string; password: string; jobTitle?: string; note?: string
   }) => {
@@ -149,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       signIn,
       signInWithGoogle,
+      signInWithMicrosoft,
       register,
       signOut,
       refreshUser,
@@ -169,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return user.departmentId === departmentId
       },
     }
-  }, [user, loading, signIn, signInWithGoogle, register, signOut, refreshUser])
+  }, [user, loading, signIn, signInWithGoogle, signInWithMicrosoft, register, signOut, refreshUser])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

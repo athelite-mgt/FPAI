@@ -3,11 +3,27 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AlertCircle, ShieldCheck } from 'lucide-react'
 import { AccountNotApprovedError, useAuth } from '../lib/auth'
 import { describeError } from '../lib/api'
+import {
+  completeMicrosoftSignIn, looksLikeMicrosoftRedirectResponse, microsoftSignInConfigured,
+  startMicrosoftSignIn,
+} from '../lib/msal'
 import type { RegistrationResult } from '../lib/types'
 import { Button, Input } from '../components/ui'
 import { AwaitingApproval } from './Register'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
+
+/** The four-square Microsoft mark. Inline so no image asset or external icon font is needed. */
+function MicrosoftLogo() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 21 21" aria-hidden focusable="false">
+      <rect x="1" y="1" width="9" height="9" fill="#F25022" />
+      <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
+      <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
+      <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
+    </svg>
+  )
+}
 
 declare global {
   interface Window {
@@ -59,13 +75,19 @@ function useGoogleButton(onCredential: (credential: string) => void) {
 }
 
 export default function Login() {
-  const { signIn, signInWithGoogle, user } = useAuth()
+  const { signIn, signInWithGoogle, signInWithMicrosoft, user } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  // True only when this page load looks like a return from Microsoft's redirect, so the
+  // form is held back for that moment rather than flashing before the dashboard replaces
+  // it — an ordinary visit to /login is never delayed by this.
+  const [resumingMicrosoft, setResumingMicrosoft] = useState(
+    () => microsoftSignInConfigured && looksLikeMicrosoftRedirectResponse(),
+  )
   // Set when the credential was right but the account is not approved yet.
   const [pending, setPending] = useState<RegistrationResult | null>(null)
 
@@ -89,6 +111,50 @@ export default function Login() {
   }
 
   const google = useGoogleButton(handleGoogle)
+
+  // Microsoft uses a full-page redirect rather than a popup, so the result of a sign-in is
+  // not a callback — it is this page reloading with Microsoft's response in the URL. That is
+  // resolved once, here, on mount.
+  useEffect(() => {
+    if (!microsoftSignInConfigured) return
+    let cancelled = false
+
+    async function resume() {
+      try {
+        const idToken = await completeMicrosoftSignIn()
+        if (cancelled) return
+        if (idToken) {
+          try {
+            await signInWithMicrosoft(idToken)
+            navigate('/', { replace: true })
+          } catch (err) {
+            if (err instanceof AccountNotApprovedError) setPending(err.result)
+            else setError(describeError(err))
+          }
+        }
+      } catch (err) {
+        if (!cancelled) setError(describeError(err))
+      } finally {
+        if (!cancelled) setResumingMicrosoft(false)
+      }
+    }
+
+    void resume()
+    return () => { cancelled = true }
+    // Intentionally runs once: this resolves a single pending redirect on page load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function handleMicrosoft() {
+    setError(null)
+    setSubmitting(true)
+    try {
+      await startMicrosoftSignIn() // navigates away; nothing after this line runs
+    } catch (err) {
+      setError(describeError(err))
+      setSubmitting(false)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -147,7 +213,9 @@ export default function Login() {
 
       {/* Form panel */}
       <div className="flex w-full items-center justify-center p-6 lg:w-1/2">
-        {pending ? (
+        {resumingMicrosoft ? (
+          <p className="text-sm text-[var(--text-muted)]">Completing sign-in…</p>
+        ) : pending ? (
           <AwaitingApproval result={pending} onBack={() => { setPending(null); setPassword('') }} />
         ) : (
         <div className="w-full max-w-sm">
@@ -195,19 +263,33 @@ export default function Login() {
             </Button>
           </form>
 
-          {google.configured && (
+          {(google.configured || microsoftSignInConfigured) && (
             <>
               <div className="my-6 flex items-center gap-3">
                 <span className="h-px flex-1 bg-[var(--border)]" />
                 <span className="text-xs text-[var(--text-subtle)]">or</span>
                 <span className="h-px flex-1 bg-[var(--border)]" />
               </div>
-              <div ref={google.container} className="flex justify-center" />
-              {!google.ready && (
-                <p className="mt-2 text-center text-xs text-[var(--text-subtle)]">
-                  Loading Google sign-in…
-                </p>
-              )}
+
+              <div className="space-y-3">
+                {google.configured && (
+                  <>
+                    <div ref={google.container} className="flex justify-center" />
+                    {!google.ready && (
+                      <p className="text-center text-xs text-[var(--text-subtle)]">
+                        Loading Google sign-in…
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {microsoftSignInConfigured && (
+                  <Button type="button" className="w-full" loading={submitting}
+                    icon={<MicrosoftLogo />} onClick={handleMicrosoft}>
+                    Sign in with Microsoft
+                  </Button>
+                )}
+              </div>
             </>
           )}
 

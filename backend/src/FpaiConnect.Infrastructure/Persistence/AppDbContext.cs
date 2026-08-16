@@ -82,6 +82,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(x => x.JobTitle).HasMaxLength(150);
             e.Property(x => x.GoogleSubjectId).HasMaxLength(100);
             e.HasIndex(x => x.GoogleSubjectId).IsUnique().HasFilter(null);
+            e.Property(x => x.MicrosoftSubjectId).HasMaxLength(100);
+            e.HasIndex(x => x.MicrosoftSubjectId).IsUnique().HasFilter(null);
             e.Property(x => x.ColorScheme).HasMaxLength(40).IsRequired();
             e.Property(x => x.FontChoice).HasMaxLength(40).IsRequired();
             e.Property(x => x.ApprovalNote).HasMaxLength(1000);

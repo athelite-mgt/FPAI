@@ -4,7 +4,9 @@ public static class SecurityHeaders
 {
     /// <summary>
     /// Baseline hardening headers. The CSP is deliberately strict but allows Google Identity
-    /// Services, which the sign-in page loads for the Google button.
+    /// Services, which the sign-in page loads for the Google button, and the Microsoft
+    /// identity platform, which MSAL.js (bundled, not loaded from a CDN) calls directly for
+    /// the redirect-based sign-in flow.
     /// </summary>
     public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder app) =>
         app.Use(async (context, next) =>
@@ -23,7 +25,7 @@ public static class SecurityHeaders
                     "style-src 'self' 'unsafe-inline' https://accounts.google.com; " +
                     "img-src 'self' data: https:; " +
                     "font-src 'self' data:; " +
-                    "connect-src 'self' https://accounts.google.com; " +
+                    "connect-src 'self' https://accounts.google.com https://login.microsoftonline.com; " +
                     "frame-src https://accounts.google.com; " +
                     "object-src 'none'; base-uri 'self'; form-action 'self'";
             }

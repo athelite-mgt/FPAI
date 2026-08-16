@@ -46,6 +46,8 @@ public class AppUser : IdentityUser<Guid>
     public string? JobTitle { get; set; }
     /// <summary>Google subject id, set on first federated sign-in. Null for password-only accounts.</summary>
     public string? GoogleSubjectId { get; set; }
+    /// <summary>Microsoft/Entra subject (oid) id, set on first federated sign-in via Microsoft.</summary>
+    public string? MicrosoftSubjectId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
     public bool IsDeleted { get; set; }

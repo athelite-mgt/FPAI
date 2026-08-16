@@ -167,66 +167,61 @@ public static class AuthEndpoints
             if (!payload.EmailVerified)
                 return ApiHelpers.Forbidden("This Google account does not have a verified email address.");
 
-            var user = await users.FindByEmailAsync(payload.Email);
-
-            // A Google account we have never seen registers itself, exactly like the signup
-            // form, and waits for an administrator. It is given no role and no token.
-            if (user is null)
-            {
-                user = new AppUser
-                {
-                    UserName = payload.Email,
-                    Email = payload.Email,
-                    EmailConfirmed = true,
-                    FullName = string.IsNullOrWhiteSpace(payload.Name) ? payload.Email : payload.Name,
-                    GoogleSubjectId = payload.Subject,
-                    Status = UserStatus.PendingApproval,
-                    RegistrationNote = "Signed up with Google.",
-                };
-
-                // No password: this account can only ever sign in through Google.
-                var created = await users.CreateAsync(user);
-                if (!created.Succeeded)
-                {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        ["registration"] = created.Errors.Select(e => e.Description).ToArray(),
-                    });
-                }
-
-                await NotifyAdministratorsAsync(db, user, ct);
-                return PendingOrBlocked(user);
-            }
-
-            if (user.IsDeleted) return ApiHelpers.Forbidden("This account is no longer active.");
-
-            if (user.GoogleSubjectId is null)
-                user.GoogleSubjectId = payload.Subject;
-            else if (user.GoogleSubjectId != payload.Subject)
-                return ApiHelpers.Forbidden("This email is already linked to a different Google account.");
-
-            // An admin-created invitation is completed by the first federated sign-in.
-            if (user.Status == UserStatus.Invited) user.Status = UserStatus.Active;
-            user.EmailConfirmed = true;
-
-            if (!CanSignIn(user))
-            {
-                // UpdateAsync refreshes the concurrency stamp; a bare SaveChanges would not.
-                await users.UpdateAsync(user);
-                return PendingOrBlocked(user);
-            }
-
-            user.LastLoginAt = DateTime.UtcNow;
-            await users.UpdateAsync(user);
-
-            var pair = await tokens.IssueAsync(user, ct);
-            return Results.Ok(new AuthResponse(pair.AccessToken, pair.RefreshToken,
-                pair.AccessTokenExpiresAt, await BuildUserDto(user, users, db, ct)));
+            return await FederatedSignInAsync(new FederatedIdentity(
+                Provider: "Google",
+                SubjectId: payload.Subject,
+                Email: payload.Email,
+                DisplayName: payload.Name,
+                GetLinkedSubjectId: u => u.GoogleSubjectId,
+                SetLinkedSubjectId: (u, id) => u.GoogleSubjectId = id),
+                users, tokens, db, ct);
         })
         .AllowAnonymous()
         .RequireRateLimiting("auth")
         .WithName("GoogleLogin")
         .WithSummary("Sign in with a Google ID token. Unknown accounts register as pending.");
+
+        // ------------------------------------------------------------------ microsoft
+        group.MapPost("/microsoft", async (
+            [FromBody] MicrosoftLoginRequest request,
+            IMicrosoftIdTokenValidator validator,
+            UserManager<AppUser> users,
+            JwtTokenService tokens,
+            AppDbContext db,
+            CancellationToken ct) =>
+        {
+            if (ApiHelpers.Validate(request) is { } invalid) return invalid;
+
+            if (!validator.IsConfigured)
+                return Results.Problem(title: "Microsoft sign-in not configured",
+                    detail: "No Microsoft client id is configured on the server.",
+                    statusCode: StatusCodes.Status501NotImplemented);
+
+            // Verifies signature (against Microsoft's published keys), issuer, audience and expiry.
+            var identity = await validator.ValidateAsync(request.IdToken, ct);
+            if (identity is null)
+                return Results.Problem(title: "Invalid Microsoft credential",
+                    detail: "The Microsoft token could not be verified.",
+                    statusCode: StatusCodes.Status401Unauthorized);
+
+            if (string.IsNullOrWhiteSpace(identity.Email))
+                return ApiHelpers.Forbidden(
+                    "This Microsoft account has no email address FPAI Connect can use. " +
+                    "Add one to your Microsoft account and try again.");
+
+            return await FederatedSignInAsync(new FederatedIdentity(
+                Provider: "Microsoft",
+                SubjectId: identity.Subject,
+                Email: identity.Email,
+                DisplayName: identity.Name,
+                GetLinkedSubjectId: u => u.MicrosoftSubjectId,
+                SetLinkedSubjectId: (u, id) => u.MicrosoftSubjectId = id),
+                users, tokens, db, ct);
+        })
+        .AllowAnonymous()
+        .RequireRateLimiting("auth")
+        .WithName("MicrosoftLogin")
+        .WithSummary("Sign in with a Microsoft ID token. Unknown accounts register as pending.");
 
         // ------------------------------------------------------------------ tokens
         group.MapPost("/refresh", async (
@@ -337,6 +332,86 @@ public static class AuthEndpoints
         })
         .RequireAuthorization()
         .WithName("ChangePassword");
+    }
+
+    /// <summary>The pieces of a federated identity that differ between providers.</summary>
+    private sealed record FederatedIdentity(
+        string Provider,
+        string SubjectId,
+        string Email,
+        string? DisplayName,
+        Func<AppUser, string?> GetLinkedSubjectId,
+        Action<AppUser, string> SetLinkedSubjectId);
+
+    /// <summary>
+    /// Matches or provisions a user for a verified federated identity (Google, Microsoft, …)
+    /// and either issues a token or explains why one cannot be issued yet. Shared so every
+    /// provider gets identical rules: unknown accounts register as pending with no role and
+    /// no token, an admin-created invitation is completed by first federated sign-in, and an
+    /// email cannot silently jump from one linked provider account to another.
+    /// </summary>
+    private static async Task<IResult> FederatedSignInAsync(
+        FederatedIdentity identity,
+        UserManager<AppUser> users,
+        JwtTokenService tokens,
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        var user = await users.FindByEmailAsync(identity.Email);
+
+        if (user is null)
+        {
+            user = new AppUser
+            {
+                UserName = identity.Email,
+                Email = identity.Email,
+                EmailConfirmed = true,
+                FullName = string.IsNullOrWhiteSpace(identity.DisplayName) ? identity.Email : identity.DisplayName,
+                Status = UserStatus.PendingApproval,
+                RegistrationNote = $"Signed up with {identity.Provider}.",
+            };
+            identity.SetLinkedSubjectId(user, identity.SubjectId);
+
+            // No password: this account can only ever sign in through this provider.
+            var created = await users.CreateAsync(user);
+            if (!created.Succeeded)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["registration"] = created.Errors.Select(e => e.Description).ToArray(),
+                });
+            }
+
+            await NotifyAdministratorsAsync(db, user, ct);
+            return PendingOrBlocked(user);
+        }
+
+        if (user.IsDeleted) return ApiHelpers.Forbidden("This account is no longer active.");
+
+        var linkedId = identity.GetLinkedSubjectId(user);
+        if (linkedId is null)
+            identity.SetLinkedSubjectId(user, identity.SubjectId);
+        else if (linkedId != identity.SubjectId)
+            return ApiHelpers.Forbidden(
+                $"This email is already linked to a different {identity.Provider} account.");
+
+        // An admin-created invitation is completed by the first federated sign-in.
+        if (user.Status == UserStatus.Invited) user.Status = UserStatus.Active;
+        user.EmailConfirmed = true;
+
+        if (!CanSignIn(user))
+        {
+            // UpdateAsync refreshes the concurrency stamp; a bare SaveChanges would not.
+            await users.UpdateAsync(user);
+            return PendingOrBlocked(user);
+        }
+
+        user.LastLoginAt = DateTime.UtcNow;
+        await users.UpdateAsync(user);
+
+        var pair = await tokens.IssueAsync(user, ct);
+        return Results.Ok(new AuthResponse(pair.AccessToken, pair.RefreshToken,
+            pair.AccessTokenExpiresAt, await BuildUserDto(user, users, db, ct)));
     }
 
     /// <summary>

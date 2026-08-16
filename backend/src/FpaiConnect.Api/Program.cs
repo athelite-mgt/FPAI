@@ -44,6 +44,9 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddScoped<JwtTokenService>();
+// Singleton: it owns a ConfigurationManager that caches Microsoft's signing keys itself,
+// so re-creating it per request would only throw that cache away.
+builder.Services.AddSingleton<IMicrosoftIdTokenValidator, MicrosoftIdTokenValidator>();
 
 builder.Services.AddAuthentication(o =>
     {

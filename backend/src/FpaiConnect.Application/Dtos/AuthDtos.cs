@@ -18,6 +18,13 @@ public record GoogleLoginRequest
     public string Credential { get; init; } = string.Empty;
 }
 
+public record MicrosoftLoginRequest
+{
+    /// <summary>The ID token returned by MSAL.js in the browser.</summary>
+    [Required]
+    public string IdToken { get; init; } = string.Empty;
+}
+
 public record RefreshRequest
 {
     [Required]

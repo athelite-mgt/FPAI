@@ -13,7 +13,7 @@ domain (modules, workflow stages, roles) was carried across.
 | **Frontend** | React 19, Vite 8, TypeScript 6, Tailwind CSS 4, TanStack Query 5, Recharts 3 |
 | **Database** | SQLite for development, Azure SQL in production (one connection-string change) |
 | **Hosting** | Azure App Service (Linux), Azure Blob Storage for documents |
-| **Tests** | 144 xUnit · 35 Vitest · 42 Playwright = **221 passing** |
+| **Tests** | 152 xUnit · 35 Vitest · 42 Playwright = **229 passing** |
 
 ---
 
@@ -157,8 +157,8 @@ changes. Charts read the active accent at runtime, so they recolour with the sch
 
 ## Signing up and being approved
 
-Anyone may request an account, either through **Request access** or by using Google sign-in
-with an address the system has never seen. In both cases:
+Anyone may request an account, either through **Request access** or by signing in with Google
+or Microsoft using an address the system has never seen. In every case:
 
 1. The account is created with status **PendingApproval**, **no role** and **no department**.
 2. **No access token is issued** — not a limited one, none at all. An unapproved account
@@ -310,9 +310,16 @@ settings and connects with its own identity on the next request.
 
 ---
 
-## Enabling Google sign-in
+## Enabling Google and Microsoft sign-in
 
-The flow is built and waiting for credentials; no code changes are needed.
+Both flows are built and waiting for credentials; no code changes are needed. Whichever
+provider a person uses, the rules are identical (see [Signing up and being
+approved](#signing-up-and-being-approved)): a known address signs straight in, an
+admin-created invitation is completed by the first federated sign-in, and an unrecognised
+address registers itself as **PendingApproval** with no role and no token — exactly like the
+email/password registration form.
+
+### Google
 
 1. In Google Cloud Console create an **OAuth 2.0 Client ID** of type *Web application*.
 2. Authorised JavaScript origins: `http://localhost:5173` for development, and
@@ -322,12 +329,30 @@ The flow is built and waiting for credentials; no code changes are needed.
    - Frontend: `VITE_GOOGLE_CLIENT_ID` in `frontend/.env.local`
    - Backend: `Authentication__Google__ClientId`
 
-The Google button then appears on the sign-in page automatically.
+### Microsoft
 
-**By design, Google sign-in never creates accounts.** An administrator must invite the user
-first; a Google login for an unknown address is refused. This stops anyone with a Google account
-obtaining a session. A user created without a password sits as `Invited` and is activated by
-their first successful Google sign-in.
+Accepts **any Microsoft account** — work, school or personal — via the multi-tenant `common`
+authority; there is no tenant restriction. Sign-in uses a full-page redirect (MSAL.js, bundled
+in the frontend build, not loaded from a CDN), so no popup-blocker or CSP `frame-src`
+exception is needed — only `connect-src https://login.microsoftonline.com`, already present in
+`SecurityHeaders.cs`.
+
+1. In the [Entra admin center](https://entra.microsoft.com) → **App registrations** → **New
+   registration**.
+2. Supported account types: **Accounts in any organizational directory and personal Microsoft
+   accounts**.
+3. Platform: **Single-page application (SPA)**. Redirect URI: `<origin>/login` for every origin
+   the app is served from — `http://localhost:5173/login` in development,
+   `https://<your-app>.azurewebsites.net/login` in production. The app returns to `/login` and
+   resolves the sign-in there before redirecting into the dashboard.
+4. Copy the **Application (client) ID** into:
+   - Frontend: `VITE_MICROSOFT_CLIENT_ID` in `frontend/.env.local`
+   - Backend: `Authentication__Microsoft__ClientId` — required for the server to validate the
+     token's signature and audience; the frontend id alone is not enough.
+
+No client secret is needed or used — this is a public client (SPA), and the backend verifies
+the ID token against Microsoft's published signing keys rather than holding a credential of
+its own.
 
 ---
 
