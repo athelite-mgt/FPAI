@@ -198,30 +198,16 @@ login endpoint with 20 simultaneous sign-ins.
 
 ## Deploying to Azure
 
-### 1. Provision
+Two `workflow_dispatch`-only GitHub Actions workflows, both authenticating via **OIDC** (no
+client secret stored in GitHub): **Provision Azure Infrastructure** (`infra.yml`) deploys
+[deploy/main.bicep](deploy/main.bicep) into a resource group named `FPAI_<environment>`
+(`FPAI_dev` / `FPAI_test` / `FPAI_prod`) in South India; **Deploy to Azure** (`deploy.yml`)
+builds the SPA into the API's `wwwroot`, publishes, deploys into whichever environment's App
+Service already exists, and smoke-tests `/api/health`.
 
-```bash
-az group create --name fpai-connect-rg --location centralindia
-
-az deployment group create \
-  --resource-group fpai-connect-rg \
-  --template-file deploy/main.bicep \
-  --parameters environmentName=prod \
-               sqlAdminLogin='fpaiadmin' \
-               sqlAdminPassword='<strong-password>' \
-               jwtSigningKey='<at least 32 random characters>' \
-               googleClientId='<optional>'
-```
-
-This creates the App Service plan and web app (health check on `/api/health`), Azure SQL server
-and database, a private Blob container for documents, and Application Insights.
-
-### 2. Deploy
-
-Set the repository secrets `AZURE_CREDENTIALS`, `AZURE_RESOURCE_GROUP`, `AZURE_WEBAPP_NAME`,
-`SQL_ADMIN_LOGIN`, `SQL_ADMIN_PASSWORD`, `JWT_SIGNING_KEY` and `GOOGLE_CLIENT_ID`, then run the
-**Deploy to Azure** workflow. It builds the SPA into the API's `wwwroot`, publishes, deploys and
-smoke-tests `/api/health`.
+Full details — the resource list, naming/tagging conventions, the OIDC setup checklist, and a
+diagram of how a deploy flows from `git push` to running resources — live in
+[deploy/README.md](deploy/README.md).
 
 ### Switching to Azure SQL
 

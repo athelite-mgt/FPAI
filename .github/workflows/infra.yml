@@ -1,0 +1,61 @@
+name: Provision Azure Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment (picks the resource group FPAI_<environment>)
+        required: true
+        default: prod
+        type: choice
+        options: [dev, test, prod]
+
+permissions:
+  id-token: write
+  contents: read
+
+# Required repository variables:
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID — from the GitHub OIDC app
+#   registration (see README's "Enabling OIDC deploys" section).
+#   GOOGLE_CLIENT_ID, MICROSOFT_CLIENT_ID — neither is secret, both are public OAuth client ids
+#   (ship in the frontend bundle too), so they live alongside the other variables rather than
+#   as secrets.
+# Required repository secrets:
+#   SQL_ADMIN_LOGIN, SQL_ADMIN_PASSWORD, JWT_SIGNING_KEY
+jobs:
+  provision:
+    name: Deploy Bicep template
+    runs-on: ubuntu-latest
+    # OIDC is git env based
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC - ${{ inputs.environment }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure the target resource group exists for ${{ inputs.environment }}
+        run: |
+          az group create \
+            --name "FPAI_${{ inputs.environment }}" \
+            --location southindia \
+            --tags env=${{ inputs.environment }} region=southindia \
+                   subscription=${{ vars.AZURE_SUBSCRIPTION_ID }} githubRepo=athelite-mgt/FPAI
+
+      - name: Deploy the ARM template for ${{ inputs.environment }}
+        uses: azure/arm-deploy@v2
+        with:
+          resourceGroupName: FPAI_${{ inputs.environment }}
+          template: deploy/main.bicep
+          parameters: >-
+            environmentName=${{ inputs.environment }}
+            sqlAdminLogin=${{ secrets.SQL_ADMIN_LOGIN }}
+            sqlAdminPassword=${{ secrets.SQL_ADMIN_PASSWORD }}
+            jwtSigningKey=${{ secrets.JWT_SIGNING_KEY }}
+            googleClientId=${{ vars.GOOGLE_CLIENT_ID }}
+            microsoftClientId=${{ vars.MICROSOFT_CLIENT_ID }} # for ms entra app 'fpaiEntra' identity provider

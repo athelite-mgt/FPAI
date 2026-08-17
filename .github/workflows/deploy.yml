@@ -4,22 +4,27 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Target environment
+        description: Target environment (must already be provisioned by the infra workflow)
         required: true
-        default: prod
         type: choice
+        default: prod
         options: [dev, test, prod]
 
 env:
-  DOTNET_VERSION: '10.0.x'
-  NODE_VERSION: '22.x'
-  DOTNET_NOLOGO: 'true'
-  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  DOTNET_VERSION: "10.0.x"
+  NODE_VERSION: "22.x"
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
 
-# Required repository secrets:
-#   AZURE_CREDENTIALS   — output of `az ad sp create-for-rbac --sdk-auth`
-#   AZURE_RESOURCE_GROUP
-#   AZURE_WEBAPP_NAME   — from the Bicep output `webAppName`
+permissions:
+  id-token: write
+  contents: read
+
+# Required repository variables:
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID — from the GitHub OIDC app
+#   registration, same as infra.yml.
+# Infrastructure (resource group FPAI_<environment>, App Service, SQL, Storage) must already
+# exist — run the "Provision Azure Infrastructure" workflow first.
 jobs:
   deploy:
     name: Build and deploy
@@ -38,7 +43,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Build the SPA
+      - name: Build the SPA for ${{ inputs.environment }}
         working-directory: frontend
         run: |
           npm ci
@@ -52,36 +57,38 @@ jobs:
           mkdir -p backend/src/FpaiConnect.Api/wwwroot
           cp -r frontend/dist/* backend/src/FpaiConnect.Api/wwwroot/
 
-      - name: Publish the API
+      - name: Publish API for ${{ inputs.environment }}
         working-directory: backend
         run: dotnet publish src/FpaiConnect.Api -c Release -o ../publish
 
-      - uses: azure/login@v2
+      - name: Login to Azure using OIDC - ${{ inputs.environment }}
+        uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy the ARM template
-        uses: azure/arm-deploy@v2
-        with:
-          resourceGroupName: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          template: deploy/main.bicep
-          parameters: >-
-            environmentName=${{ inputs.environment }}
-            sqlAdminLogin=${{ secrets.SQL_ADMIN_LOGIN }}
-            sqlAdminPassword=${{ secrets.SQL_ADMIN_PASSWORD }}
-            jwtSigningKey=${{ secrets.JWT_SIGNING_KEY }}
-            googleClientId=${{ secrets.GOOGLE_CLIENT_ID }}
+      - name: Look up the web app name for ${{ inputs.environment }}
+        id: webapp
+        run: |
+          name=$(az webapp list --resource-group "FPAI_${{ inputs.environment }}" \
+                   --query "[0].name" -o tsv)
+          if [ -z "$name" ]; then
+            echo "No web app found in FPAI_${{ inputs.environment }} — run the infra workflow first." >&2
+            exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy the application
+      - name: Deploy the application - ${{ inputs.environment }}
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          app-name: ${{ steps.webapp.outputs.name }}
           package: publish
 
       - name: Smoke test
         run: |
           for i in $(seq 1 30); do
-            if curl -sf "https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net/api/health"; then
+            if curl -sf "https://${{ steps.webapp.outputs.name }}.azurewebsites.net/api/health"; then
               echo "Deployment is healthy."
               exit 0
             fi
