@@ -34,16 +34,16 @@ idempotent `az deployment group create`, not a teardown-and-recreate.
 
 ## Resources this template creates
 
-| Resource | SKU / tier | Why |
-|---|---|---|
-| App Service Plan + Web App | Linux, **F1 (free)** | Hosts the API and serves the built SPA from `wwwroot`; health check on `/api/health` |
-| SQL Server + Database | Serverless **General Purpose, Gen5, up to 2 vCores**, `useFreeLimit: true` | The backend has no workload heavy enough to need more; this SKU qualifies for Azure SQL's free monthly limit (one per subscription) |
-| Storage Account + `documents` blob container | `Standard_LRS`, TLS 1.2, no public blob access | Document storage — App Service's local disk is ephemeral and not shared between instances |
-| Log Analytics Workspace + Application Insights | `PerGB2018`, 30-day retention | Diagnostics and request telemetry |
+| Resource                                       | SKU / tier                                                                 | Why                                                                                                                                 |
+| ---------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| App Service Plan + Web App                     | Linux, **F1 (free)**                                                       | Hosts the API and serves the built SPA from `wwwroot`; health check on `/api/health`                                                |
+| SQL Server + Database                          | Serverless **General Purpose, Gen5, up to 2 vCores**, `useFreeLimit: true` | The backend has no workload heavy enough to need more; this SKU qualifies for Azure SQL's free monthly limit (one per subscription) |
+| Storage Account + `documents` blob container   | `Standard_LRS`, TLS 1.2, no public blob access                             | Document storage — App Service's local disk is ephemeral and not shared between instances                                           |
+| Log Analytics Workspace + Application Insights | `PerGB2018`, 30-day retention                                              | Diagnostics and request telemetry                                                                                                   |
 
 Nothing here needs a Key Vault or an email/SMTP resource — see the root [README](../README.md#known-gaps)'s "Known gaps" for what the backend genuinely doesn't use.
 
-## Passwordless where it's easy, not where it's hard
+## Passwordless Entra
 
 The Web App gets a **system-assigned managed identity**, granted `Storage Blob Data Contributor`
 on the storage account by this template (see `storageBlobRoleAssignment` in `main.bicep`) — so
@@ -57,7 +57,7 @@ extra Entra permissions on whoever runs it — judged not worth the added moving
 app's scale. The manual, one-time steps to do it anyway are documented in the root
 [README](../README.md).
 
-Separately, the template can *optionally* add an **Entra ID admin** on the SQL server
+Separately, the template can _optionally_ add an **Entra ID admin** on the SQL server
 (`sqlEntraAdminLogin` / `sqlEntraAdminObjectId`) purely for interactive human access — signing
 in via SSMS or Azure Data Studio with an Entra identity instead of the SQL admin password.
 This is additive, not a replacement: SQL authentication is never disabled
@@ -66,7 +66,7 @@ Leave both parameters empty (the default) to skip it — the resource is only cr
 `sqlEntraAdminObjectId` is non-empty.
 
 A **group** is the recommended admin, not an individual user — membership can change (someone
-joins or leaves the team) without ever touching Bicep or redeploying:
+joins or leaves the team) without ever touching Bicep or redeploying [BOOTSTRAPPED]:
 
 ```bash
 # 1. Create a plain Azure AD Security group — must NOT be mail-enabled or a Microsoft 365
@@ -85,7 +85,7 @@ az ad group show --group "db_entra_login" --query "{login:displayName, objectId:
 To grant a single person instead, skip the group and use their own identity directly:
 `az ad signed-in-user show --query "{login:userPrincipalName, objectId:id}"`.
 
-## Naming and tagging
+## Naming and tagging [BOOTSTRAPPED]
 
 Every environment gets its own resource group, **`FPAI_<env>`** (`FPAI_dev`, `FPAI_test`,
 `FPAI_prod`) — not a shared one — so resources for different environments can never collide or
@@ -95,7 +95,7 @@ Every resource name includes the environment, e.g. `fpai-connect-prod-<uniqueSuf
 `fpai-connect-sql-prod-<uniqueSuffix>` (SQL Server), `fpai-connect-db-prod` (Database),
 `fpai-connect-plan-prod` (App Service Plan). The one exception is the **storage account**: Azure
 storage account names are capped at 24 characters, lowercase letters/numbers only, and must be
-globally unique across *all* of Azure — not just this subscription — so the template keeps the
+globally unique across _all_ of Azure — not just this subscription — so the template keeps the
 env fully legible (`prod`/`test`/`dev`) but truncates the `appName` portion to 6 characters
 rather than risk truncating the hash that actually guarantees uniqueness.
 
@@ -105,7 +105,7 @@ service, its `documents` container (the backend's `Storage:ContainerName` defaul
 firewall rule `AllowAllWindowsAzureIps`, the Web App's `appsettings` config slot, and the blob
 role assignment (Azure requires role assignment names to be GUIDs).
 
-Every resource that *does* support ARM tags carries the same four:
+Every resource that _does_ support ARM tags carries the same four:
 
 ```
 env: <dev|test|prod>
@@ -122,14 +122,14 @@ step, since Bicep can't tag the resource group it's deploying into.
 No `AZURE_CREDENTIALS` client secret, no publish profile. Both workflows federate a short-lived
 Azure AD token off the GitHub Actions OIDC token, scoped to the **GitHub Environment** matching
 whichever `environment` input was chosen — never to a branch. That means every environment you
-dispatch against (`dev`, `test`, `prod`) needs its own GitHub Environment *and* its own
+dispatch against (`dev`, `test`, `prod`) needs its own GitHub Environment _and_ its own
 federated credential with a matching subject:
 
 ```
 repo:athelite-mgt/FPAI:environment:<env>
 ```
 
-One-time setup (already done for `dev`/`test`/`prod` as of writing):
+One-time setup (already done for `dev`/`test`/`prod` as of writing) [BOOTSTRAPPED]:
 
 ```bash
 az ad app create --display-name "fpai-connect-github-oidc"
@@ -166,18 +166,18 @@ where it's hard" above) — leave both unset to skip.
 
 ## Bicep parameters
 
-| Parameter | Default | Notes |
-|---|---|---|
-| `appName` | `fpai-connect` | Seeds every resource name; 3–18 chars |
-| `location` | `resourceGroup().location` | Inherits South India from the RG |
-| `environmentName` | *(required)* | `dev` \| `test` \| `prod` — passed from the workflow input |
-| `sqlAdminLogin` / `sqlAdminPassword` | *(required)* | From `SQL_ADMIN_LOGIN` / `SQL_ADMIN_PASSWORD` secrets |
-| `jwtSigningKey` | *(required)*, ≥32 chars | From the `JWT_SIGNING_KEY` secret |
-| `googleClientId` / `microsoftClientId` | `''` | Optional — sign-in for that provider stays off until set |
-| `sqlEntraAdminLogin` / `sqlEntraAdminObjectId` | `''` | Optional — Entra admin on the SQL server skipped entirely unless `sqlEntraAdminObjectId` is set |
-| `appServiceSku` | `F1` | `F1`\|`B1`\|`B2`\|`S1`\|`P0v3`\|`P1v3` |
+| Parameter                                      | Default                    | Notes                                                                                           |
+| ---------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `appName`                                      | `fpai-connect`             | Seeds every resource name; 3–18 chars                                                           |
+| `location`                                     | `resourceGroup().location` | Inherits South India from the RG                                                                |
+| `environmentName`                              | _(required)_               | `dev` \| `test` \| `prod` — passed from the workflow input                                      |
+| `sqlAdminLogin` / `sqlAdminPassword`           | _(required)_               | From `SQL_ADMIN_LOGIN` / `SQL_ADMIN_PASSWORD` secrets                                           |
+| `jwtSigningKey`                                | _(required)_, ≥32 chars    | From the `JWT_SIGNING_KEY` secret                                                               |
+| `googleClientId` / `microsoftClientId`         | `''`                       | Optional — sign-in for that provider stays off until set                                        |
+| `sqlEntraAdminLogin` / `sqlEntraAdminObjectId` | `''`                       | Optional — Entra admin on the SQL server skipped entirely unless `sqlEntraAdminObjectId` is set |
+| `appServiceSku`                                | `F1`                       | `F1`\|`B1`\|`B2`\|`S1`\|`P0v3`\|`P1v3`                                                          |
 
-## Running it yourself
+## Running it for new env
 
 Prefer dispatching the **Provision Azure Infrastructure** and **Deploy to Azure** GitHub Actions
 workflows (Actions tab → pick the workflow → Run workflow → choose an environment). To validate

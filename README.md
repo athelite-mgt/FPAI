@@ -218,10 +218,13 @@ Database__Provider = SqlServer
 ConnectionStrings__Default = Server=tcp:<server>.database.windows.net,1433;Database=...
 ```
 
-EF Core migrations run automatically at startup. The domain deliberately uses UTC `DateTime`
-rather than `DateTimeOffset` so that ordering and comparison behave identically on SQLite and
-SQL Server — a `DateTimeOffset` sort works on Azure SQL but throws on SQLite, which would mean
-development and production diverging.
+Migrations are authored only against SQL Server (the production provider) and run automatically
+at startup. SQLite — dev and test only, never a real deployment — skips migration replay
+entirely and builds its schema straight from the current model instead, since EF Core migrations
+are provider-specific and a SQL-Server-flavored migration can't run against SQLite. The domain
+deliberately uses UTC `DateTime` rather than `DateTimeOffset` so that ordering and comparison
+behave identically on SQLite and SQL Server — a `DateTimeOffset` sort works on Azure SQL but
+throws on SQLite, which would mean development and production diverging.
 
 > **Production checklist:** set `Seed__Enabled=false`, supply a real `Jwt__SigningKey` (the app
 > refuses to start in Production without one of at least 32 characters), and set

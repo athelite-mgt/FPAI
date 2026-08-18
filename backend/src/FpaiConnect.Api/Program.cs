@@ -192,7 +192,14 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var db = services.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
+
+    // Migrations are only authored (and tested) against SQL Server, the production provider.
+    // Sqlite is dev/test-only and never sees a real deployment, so it builds its schema
+    // straight from the current model instead of replaying SQL-Server-flavored migrations.
+    if (db.Database.IsSqlite())
+        await db.Database.EnsureCreatedAsync();
+    else
+        await db.Database.MigrateAsync();
 
     if (app.Configuration.GetValue("Seed:Enabled", true))
         await services.GetRequiredService<DatabaseSeeder>().SeedAsync();
