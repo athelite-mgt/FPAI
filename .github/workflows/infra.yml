@@ -50,6 +50,17 @@ jobs:
             --tags env=${{ inputs.environment }} region=southindia \
                    subscription=${{ vars.AZURE_SUBSCRIPTION_ID }} githubRepo=athelite-mgt/FPAI
 
+      - name: Pick the App Service plan size for ${{ inputs.environment }}
+        id: sku
+        run: |
+          # F1 (free) has a 60 CPU-minute/day quota and no Always On — fine for dev/test,
+          # but prod gets auto-disabled by Azure the moment it's exceeded. Prod runs on B1.
+          if [ "${{ inputs.environment }}" = "prod" ]; then
+            echo "value=B1" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=F1" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy the ARM template for ${{ inputs.environment }}
         uses: azure/arm-deploy@v2
         with:
@@ -58,6 +69,7 @@ jobs:
           # microsoftClientId is for ms entra app 'fpaiEntra' identity provider
           parameters: >-
             environmentName=${{ inputs.environment }}
+            appServiceSku=${{ steps.sku.outputs.value }}
             sqlAdminLogin=${{ secrets.SQL_ADMIN_LOGIN }}
             sqlAdminPassword=${{ secrets.SQL_ADMIN_PASSWORD }}
             jwtSigningKey=${{ secrets.JWT_SIGNING_KEY }}
