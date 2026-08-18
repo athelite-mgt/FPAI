@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FpaiConnect.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260818173522_InitialSchema")]
+    [Migration("20260818182119_InitialSchema")]
     partial class InitialSchema
     {
         /// <inheritdoc />
@@ -234,10 +234,12 @@ namespace FpaiConnect.Infrastructure.Persistence.Migrations
                     b.HasIndex("DepartmentId");
 
                     b.HasIndex("GoogleSubjectId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[GoogleSubjectId] IS NOT NULL");
 
                     b.HasIndex("MicrosoftSubjectId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[MicrosoftSubjectId] IS NOT NULL");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -350,8 +352,8 @@ namespace FpaiConnect.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("EntityId")
                         .IsRequired()
-                        .HasMaxLength(60)
-                        .HasColumnType("nvarchar(60)");
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("EntityName")
                         .IsRequired()
@@ -1896,7 +1898,7 @@ namespace FpaiConnect.Infrastructure.Persistence.Migrations
                     b.HasOne("FpaiConnect.Domain.Entities.AppUser", "RaisedBy")
                         .WithMany()
                         .HasForeignKey("RaisedById")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("FpaiConnect.Domain.Entities.Voucher", "Voucher")
                         .WithMany("Queries")
@@ -1945,7 +1947,7 @@ namespace FpaiConnect.Infrastructure.Persistence.Migrations
                     b.HasOne("FpaiConnect.Domain.Entities.AppUser", "RequestedBy")
                         .WithMany()
                         .HasForeignKey("RequestedById")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("DecidedBy");
 
@@ -2067,7 +2069,7 @@ namespace FpaiConnect.Infrastructure.Persistence.Migrations
                     b.HasOne("FpaiConnect.Domain.Entities.AppUser", "SubmittedBy")
                         .WithMany()
                         .HasForeignKey("SubmittedById")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("ApprovedBy");
 
@@ -2259,7 +2261,7 @@ namespace FpaiConnect.Infrastructure.Persistence.Migrations
                     b.HasOne("FpaiConnect.Domain.Entities.AppUser", "ApprovedBy")
                         .WithMany()
                         .HasForeignKey("ApprovedById")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("FpaiConnect.Domain.Entities.Department", "Department")
                         .WithMany()

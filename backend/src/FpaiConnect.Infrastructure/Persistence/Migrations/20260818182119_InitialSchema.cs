@@ -17,7 +17,7 @@ namespace FpaiConnect.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     EntityName = table.Column<string>(type: "nvarchar(120)", maxLength: 120, nullable: false),
-                    EntityId = table.Column<string>(type: "nvarchar(60)", maxLength: 60, nullable: false),
+                    EntityId = table.Column<string>(type: "nvarchar(450)", maxLength: 450, nullable: false),
                     Action = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
                     UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     UserName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
@@ -280,7 +280,7 @@ namespace FpaiConnect.Infrastructure.Persistence.Migrations
                         column: x => x.RequestedById,
                         principalTable: "Users",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -370,7 +370,7 @@ namespace FpaiConnect.Infrastructure.Persistence.Migrations
                         column: x => x.SubmittedById,
                         principalTable: "Users",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -649,7 +649,7 @@ namespace FpaiConnect.Infrastructure.Persistence.Migrations
                         column: x => x.ApprovedById,
                         principalTable: "Users",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_Vouchers_Users_ReconciledById",
                         column: x => x.ReconciledById,
@@ -957,7 +957,7 @@ namespace FpaiConnect.Infrastructure.Persistence.Migrations
                         column: x => x.RaisedById,
                         principalTable: "Users",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_AccountantQueries_Vouchers_VoucherId",
                         column: x => x.VoucherId,
@@ -1468,13 +1468,15 @@ namespace FpaiConnect.Infrastructure.Persistence.Migrations
                 name: "IX_Users_GoogleSubjectId",
                 table: "Users",
                 column: "GoogleSubjectId",
-                unique: true);
+                unique: true,
+                filter: "[GoogleSubjectId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_MicrosoftSubjectId",
                 table: "Users",
                 column: "MicrosoftSubjectId",
-                unique: true);
+                unique: true,
+                filter: "[MicrosoftSubjectId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_Status",

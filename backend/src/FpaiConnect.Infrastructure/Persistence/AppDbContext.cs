@@ -80,10 +80,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.ToTable("Users");
             e.Property(x => x.FullName).HasMaxLength(200).IsRequired();
             e.Property(x => x.JobTitle).HasMaxLength(150);
+            // Unfiltered on purpose: SQL Server allows only one NULL total in a plain unique
+            // index (unlike SQLite, which allows any number), and every non-federated account
+            // has this NULL — a second such account would fail to insert. Letting EF Core apply
+            // its own per-provider convention (a WHERE ... IS NOT NULL filtered index on SQL
+            // Server, plain unique on SQLite) is what actually gives correct behavior on both;
+            // an explicit HasFilter(null) here would strip that filter and reintroduce the bug.
             e.Property(x => x.GoogleSubjectId).HasMaxLength(100);
-            e.HasIndex(x => x.GoogleSubjectId).IsUnique().HasFilter(null);
+            e.HasIndex(x => x.GoogleSubjectId).IsUnique();
             e.Property(x => x.MicrosoftSubjectId).HasMaxLength(100);
-            e.HasIndex(x => x.MicrosoftSubjectId).IsUnique().HasFilter(null);
+            e.HasIndex(x => x.MicrosoftSubjectId).IsUnique();
             e.Property(x => x.ColorScheme).HasMaxLength(40).IsRequired();
             e.Property(x => x.FontChoice).HasMaxLength(40).IsRequired();
             e.Property(x => x.ApprovalNote).HasMaxLength(1000);
@@ -125,7 +131,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<AuditLog>(e =>
         {
             e.Property(x => x.EntityName).HasMaxLength(120).IsRequired();
-            e.Property(x => x.EntityId).HasMaxLength(60).IsRequired();
+            // Composite primary keys (Identity's UserRoles, UserLogins, UserTokens) get their
+            // key values comma-joined by AuditInterceptor.PrimaryKeyOf — two GUIDs alone are
+            // already 73 characters, and UserTokens' three-part key can run longer. 60 was only
+            // ever enough for a single Guid.ToString() and SQL Server enforces it strictly
+            // (SQLite silently never did, which is why this went uncaught).
+            e.Property(x => x.EntityId).HasMaxLength(450).IsRequired();
             e.Property(x => x.Action).HasMaxLength(30).IsRequired();
             e.Property(x => x.UserName).HasMaxLength(200);
             e.HasIndex(x => new { x.EntityName, x.EntityId });
@@ -230,8 +241,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
                 .HasForeignKey(x => x.VendorId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Department).WithMany().HasForeignKey(x => x.DepartmentId)
                 .OnDelete(DeleteBehavior.Restrict);
+            // Same SQL Server multiple-cascade-paths restriction as ApprovalRequest: only one
+            // of the two Users FKs can cascade, so the earlier lifecycle step (approval) is
+            // Restrict and the later one (reconciliation) stays SetNull.
             e.HasOne(x => x.ApprovedBy).WithMany().HasForeignKey(x => x.ApprovedById)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ReconciledBy).WithMany().HasForeignKey(x => x.ReconciledById)
                 .OnDelete(DeleteBehavior.SetNull);
         });
@@ -247,8 +261,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasIndex(x => new { x.Status, x.DepartmentId });
             e.HasOne(x => x.Department).WithMany().HasForeignKey(x => x.DepartmentId)
                 .OnDelete(DeleteBehavior.Restrict);
+            // Same SQL Server multiple-cascade-paths restriction: SubmittedBy (earlier) is
+            // Restrict, ApprovedBy (later) stays SetNull.
             e.HasOne(x => x.SubmittedBy).WithMany().HasForeignKey(x => x.SubmittedById)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ApprovedBy).WithMany().HasForeignKey(x => x.ApprovedById)
                 .OnDelete(DeleteBehavior.SetNull);
         });
@@ -273,8 +289,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
                 .OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Expense).WithMany(v => v.Queries).HasForeignKey(x => x.ExpenseId)
                 .OnDelete(DeleteBehavior.Cascade);
+            // Same SQL Server multiple-cascade-paths restriction: RaisedBy (earlier) is
+            // Restrict, AnsweredBy (later) stays SetNull.
             e.HasOne(x => x.RaisedBy).WithMany().HasForeignKey(x => x.RaisedById)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.AnsweredBy).WithMany().HasForeignKey(x => x.AnsweredById)
                 .OnDelete(DeleteBehavior.SetNull);
         });
@@ -403,8 +421,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasIndex(x => new { x.EntityType, x.EntityId });
             e.HasOne(x => x.Department).WithMany().HasForeignKey(x => x.DepartmentId)
                 .OnDelete(DeleteBehavior.Restrict);
+            // Two FKs to Users with cascading actions would give SQL Server multiple cascade
+            // paths to the same table, which it refuses outright — one side has to be
+            // Restrict. RequestedBy is the earlier, more load-bearing actor of the pair.
             e.HasOne(x => x.RequestedBy).WithMany().HasForeignKey(x => x.RequestedById)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.DecidedBy).WithMany().HasForeignKey(x => x.DecidedById)
                 .OnDelete(DeleteBehavior.SetNull);
         });
