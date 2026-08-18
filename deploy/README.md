@@ -50,10 +50,40 @@ on the storage account by this template (see `storageBlobRoleAssignment` in `mai
 document storage needs no account key anywhere, ever.
 
 SQL Server still uses an admin login/password (`sqlAdminLogin`/`sqlAdminPassword`, passed as
-secrets — see below). Making SQL passwordless too is possible but needs a deployment script to
-run `CREATE USER ... FROM EXTERNAL PROVIDER` plus extra Entra permissions on whoever runs it —
-judged not worth the added moving parts for this app's scale. The manual, one-time steps to do
-it anyway are documented in the root [README](../README.md).
+secrets — see below) for the **app's own** connection — that's what the Web App's connection
+string always uses, unconditionally. Making the app's own connection passwordless too is
+possible but needs a deployment script to run `CREATE USER ... FROM EXTERNAL PROVIDER` plus
+extra Entra permissions on whoever runs it — judged not worth the added moving parts for this
+app's scale. The manual, one-time steps to do it anyway are documented in the root
+[README](../README.md).
+
+Separately, the template can *optionally* add an **Entra ID admin** on the SQL server
+(`sqlEntraAdminLogin` / `sqlEntraAdminObjectId`) purely for interactive human access — signing
+in via SSMS or Azure Data Studio with an Entra identity instead of the SQL admin password.
+This is additive, not a replacement: SQL authentication is never disabled
+(`azureADOnlyAuthentication` is never set), and it has no effect on how the app itself connects.
+Leave both parameters empty (the default) to skip it — the resource is only created when
+`sqlEntraAdminObjectId` is non-empty.
+
+A **group** is the recommended admin, not an individual user — membership can change (someone
+joins or leaves the team) without ever touching Bicep or redeploying:
+
+```bash
+# 1. Create a plain Azure AD Security group — must NOT be mail-enabled or a Microsoft 365
+#    group (skip --group-types Unified), since only security groups are valid SQL admins
+az ad group create --display-name "db_entra_login" --mail-nickname "db_entra_login"
+
+# 2. Add whoever needs SQL access as a member (repeat per person)
+az ad group member add --group "db_entra_login" \
+  --member-id $(az ad signed-in-user show --query id -o tsv)
+
+# 3. These two values go straight into the SQL_ENTRA_ADMIN_LOGIN / SQL_ENTRA_ADMIN_OBJECT_ID
+#    repo variables
+az ad group show --group "db_entra_login" --query "{login:displayName, objectId:id}"
+```
+
+To grant a single person instead, skip the group and use their own identity directly:
+`az ad signed-in-user show --query "{login:userPrincipalName, objectId:id}"`.
 
 ## Naming and tagging
 
@@ -128,7 +158,9 @@ resource succeed — plain `Contributor` deliberately excludes
 **Variables** (not secret — safe to read, so they're variables rather than secrets):
 `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `GOOGLE_CLIENT_ID`,
 `MICROSOFT_CLIENT_ID` — the last two are public OAuth client ids that also ship inside the
-frontend bundle, so there's nothing gained by treating them as secrets.
+frontend bundle, so there's nothing gained by treating them as secrets. Optionally
+`SQL_ENTRA_ADMIN_LOGIN` / `SQL_ENTRA_ADMIN_OBJECT_ID` (see "Passwordless where it's easy, not
+where it's hard" above) — leave both unset to skip.
 
 **Secrets**: `SQL_ADMIN_LOGIN`, `SQL_ADMIN_PASSWORD`, `JWT_SIGNING_KEY`.
 
@@ -142,6 +174,7 @@ frontend bundle, so there's nothing gained by treating them as secrets.
 | `sqlAdminLogin` / `sqlAdminPassword` | *(required)* | From `SQL_ADMIN_LOGIN` / `SQL_ADMIN_PASSWORD` secrets |
 | `jwtSigningKey` | *(required)*, ≥32 chars | From the `JWT_SIGNING_KEY` secret |
 | `googleClientId` / `microsoftClientId` | `''` | Optional — sign-in for that provider stays off until set |
+| `sqlEntraAdminLogin` / `sqlEntraAdminObjectId` | `''` | Optional — Entra admin on the SQL server skipped entirely unless `sqlEntraAdminObjectId` is set |
 | `appServiceSku` | `F1` | `F1`\|`B1`\|`B2`\|`S1`\|`P0v3`\|`P1v3` |
 
 ## Running it yourself

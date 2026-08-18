@@ -28,6 +28,12 @@ param googleClientId string = ''
 @description('Microsoft (Entra) OAuth client id. Leave empty until Microsoft sign-in is configured.')
 param microsoftClientId string = ''
 
+@description('Display name (email or group name) for an Entra ID admin on the SQL server, for interactive access via SSMS/Azure Data Studio. Leave empty to skip — the app itself always uses sqlAdminLogin regardless.')
+param sqlEntraAdminLogin string = ''
+
+@description('Object ID (GUID) of the Entra user or group named by sqlEntraAdminLogin. Required if sqlEntraAdminLogin is set; ignored otherwise.')
+param sqlEntraAdminObjectId string = ''
+
 @description('App Service plan size. F1 is free but has no Always On and a daily CPU quota.')
 @allowed(['F1', 'B1', 'B2', 'S1', 'P0v3', 'P1v3'])
 param appServiceSku string = 'F1'
@@ -104,6 +110,21 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
     administratorLoginPassword: sqlAdminPassword
     minimalTlsVersion: '1.2'
     publicNetworkAccess: 'Enabled'
+  }
+}
+
+// Optional Entra ID admin for interactive access (SSMS / Azure Data Studio) — additive, not a
+// replacement for sqlAdminLogin: SQL authentication stays enabled (azureADOnlyAuthentication is
+// never set), and the app's own connection string keeps using sqlAdminLogin regardless. Skipped
+// entirely when sqlEntraAdminObjectId is empty.
+resource sqlServerEntraAdmin 'Microsoft.Sql/servers/administrators@2023-08-01-preview' = if (!empty(sqlEntraAdminObjectId)) {
+  parent: sqlServer
+  name: 'ActiveDirectory'
+  properties: {
+    administratorType: 'ActiveDirectory'
+    login: sqlEntraAdminLogin
+    sid: sqlEntraAdminObjectId
+    tenantId: subscription().tenantId
   }
 }
 
