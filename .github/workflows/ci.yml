@@ -1,4 +1,4 @@
-name: CI
+name: CI - E2E Tests
 
 on:
   push:
@@ -8,10 +8,10 @@ on:
   workflow_dispatch:
 
 env:
-  DOTNET_VERSION: '10.0.x'
-  NODE_VERSION: '22.x'
-  DOTNET_NOLOGO: 'true'
-  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  DOTNET_VERSION: "10.0.x"
+  NODE_VERSION: "22.x"
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
 
 jobs:
   backend:
@@ -103,8 +103,8 @@ jobs:
           ASPNETCORE_URLS: http://localhost:5099
           # The E2E suite registers many accounts from one address; the limiter is covered
           # by the backend RateLimitingTests rather than fought here.
-          RateLimiting__SignInPerMinutePerClient: '100000'
-          RateLimiting__RegisterPerHourPerClient: '100000'
+          RateLimiting__SignInPerMinutePerClient: "100000"
+          RateLimiting__RegisterPerHourPerClient: "100000"
         run: |
           dotnet run --no-launch-profile &
           for i in $(seq 1 60); do

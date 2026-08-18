@@ -55,12 +55,13 @@ jobs:
         with:
           resourceGroupName: FPAI_${{ inputs.environment }}
           template: deploy/main.bicep
+          # microsoftClientId is for ms entra app 'fpaiEntra' identity provider
           parameters: >-
             environmentName=${{ inputs.environment }}
             sqlAdminLogin=${{ secrets.SQL_ADMIN_LOGIN }}
             sqlAdminPassword=${{ secrets.SQL_ADMIN_PASSWORD }}
             jwtSigningKey=${{ secrets.JWT_SIGNING_KEY }}
             googleClientId=${{ vars.GOOGLE_CLIENT_ID }}
-            microsoftClientId=${{ vars.MICROSOFT_CLIENT_ID }} # for ms entra app 'fpaiEntra' identity provider
+            microsoftClientId=${{ vars.MICROSOFT_CLIENT_ID }}
             sqlEntraAdminLogin=${{ vars.SQL_ENTRA_ADMIN_LOGIN }}
             sqlEntraAdminObjectId=${{ vars.SQL_ENTRA_ADMIN_OBJECT_ID }}
