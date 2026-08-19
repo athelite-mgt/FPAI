@@ -22,6 +22,20 @@ public class DatabaseSeeder(
     // test classes) can seed concurrently inside a single process.
     private readonly Random _rng = new(20250915);
 
+    /// <summary>
+    /// Roles and departments are structural configuration the app cannot run without — every
+    /// authorization policy and every case/voucher/task references them. Unlike the demo
+    /// dataset below, this must run on every startup regardless of Seed:Enabled, or a
+    /// production deployment with demo seeding turned off silently ends up with zero roles:
+    /// every subsequent AddToRoleAsync call fails, and every RequireRole policy check then
+    /// locks the affected user out of the entire app.
+    /// </summary>
+    public async Task EnsureSystemDefaultsAsync(CancellationToken ct = default)
+    {
+        await SeedRolesAsync();
+        await SeedDepartmentsAsync(ct);
+    }
+
     public async Task SeedAsync(CancellationToken ct = default)
     {
         await SeedRolesAsync();

@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Building2, Palette, Truck, UserCheck, Users } from 'lucide-react'
+import { Building2, History, Palette, Truck, UserCheck, Users } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import type { PendingUser, Role } from '../lib/types'
@@ -12,6 +12,7 @@ const Approvals = lazy(() => import('./settings/Approvals'))
 const Departments = lazy(() => import('./settings/Departments'))
 const Directory = lazy(() => import('./settings/Directory'))
 const Users_ = lazy(() => import('./Users'))
+const AuditLog = lazy(() => import('./AuditLog'))
 
 interface Section {
   path: string
@@ -57,6 +58,13 @@ const SECTIONS: Section[] = [
     icon: Truck,
     description: 'Shared reference data',
     roles: ['SuperAdmin', 'DepartmentHead'],
+  },
+  {
+    path: 'audit-log',
+    label: 'Audit log',
+    icon: History,
+    description: 'Every recorded change, across every module',
+    roles: ['SuperAdmin'],
   },
 ]
 
@@ -173,6 +181,19 @@ export default function Settings() {
                     <Directory />
                   ) : (
                     <EmptyState title="You do not have access to this section" />
+                  )
+                }
+              />
+              <Route
+                path="audit-log"
+                element={
+                  isSuperAdmin ? (
+                    <AuditLog />
+                  ) : (
+                    <EmptyState
+                      title="Administrators only"
+                      description="Only a Super Admin can view the audit log."
+                    />
                   )
                 }
               />

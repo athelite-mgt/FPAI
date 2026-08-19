@@ -13,6 +13,7 @@ import { api } from '../lib/api'
 import { humanise, initialsOf, formatRelative } from '../lib/format'
 import type { NotificationItem, Role } from '../lib/types'
 import { Badge } from './ui'
+import { FpaiMark, PoweredByAthelite } from './Branding'
 
 interface NavItem {
   to: string
@@ -42,9 +43,7 @@ const NAV: NavItem[] = [
 function Brand() {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="flex size-8 items-center justify-center rounded-lg bg-[var(--accent-solid)] font-bold text-white">
-        F
-      </div>
+      <FpaiMark className="size-8" />
       <div className="leading-tight">
         <p className="text-sm font-semibold text-white">FPAI Connect</p>
         <p className="text-[11px] text-[var(--chrome-muted)]">Players Association of India</p>
@@ -133,7 +132,7 @@ function UserMenu() {
         </span>
         <span className="hidden text-left sm:block">
           <span className="block text-xs font-medium text-[var(--text)]">{user.fullName}</span>
-          <span className="block text-[11px] text-[var(--text-muted)]">{humanise(user.roles[0])}</span>
+          <span className="block text-[11px] text-[var(--text-muted)]">{humanise(user.roles?.[0])}</span>
         </span>
         <ChevronDown className="size-3.5 text-[var(--text-subtle)]" />
       </button>
@@ -146,7 +145,7 @@ function UserMenu() {
               <p className="truncate text-sm font-medium">{user.fullName}</p>
               <p className="truncate text-xs text-[var(--text-muted)]">{user.email}</p>
               <div className="mt-1.5 flex flex-wrap gap-1">
-                {user.roles.map((r) => <Badge key={r} tone="success">{humanise(r)}</Badge>)}
+                {(user.roles ?? []).map((r) => <Badge key={r} tone="success">{humanise(r)}</Badge>)}
                 {user.departmentName && <Badge>{user.departmentName}</Badge>}
               </div>
             </div>
@@ -174,7 +173,7 @@ export default function AppShell() {
   const { resolvedTheme, toggleMode } = usePreferences()
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const visible = NAV.filter((item) => item.roles.some((r) => user?.roles.includes(r)))
+  const visible = NAV.filter((item) => item.roles.some((r) => (user?.roles ?? []).includes(r)))
 
   return (
     <div className="flex h-full">
@@ -214,10 +213,11 @@ export default function AppShell() {
           ))}
         </nav>
 
-        <div className="border-t border-[var(--chrome-border)] px-4 py-3">
+        <div className="space-y-2.5 border-t border-[var(--chrome-border)] px-4 py-3">
           <p className="text-[11px] text-[var(--chrome-muted)]">
             {user?.departmentName ?? 'No department'}
           </p>
+          <PoweredByAthelite compact />
         </div>
       </aside>
 

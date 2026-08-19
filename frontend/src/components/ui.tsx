@@ -425,18 +425,23 @@ export function Modal({
 }) {
   const ref = useRef<HTMLDivElement>(null)
 
+  // Scroll-lock and initial focus only ever need to happen once, when the dialog opens —
+  // not on every render. Keying this on `open` alone (rather than also `onClose`, which is
+  // a fresh function identity on every parent render) stops it from re-running and stealing
+  // focus back from a field inside the dialog on every keystroke.
+  useEffect(() => {
+    if (!open) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    ref.current?.focus()
+    return () => { document.body.style.overflow = previous }
+  }, [open])
+
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
-    // Prevent the page behind the dialog from scrolling.
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    ref.current?.focus()
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = previous
-    }
+    return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
   if (!open) return null

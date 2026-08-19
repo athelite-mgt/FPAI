@@ -284,6 +284,11 @@ export interface Activity {
   entityName: string; action: string; summary: string; userName?: string; timestamp: string
 }
 
+export interface AuditEntry {
+  id: string; entityName: string; entityId: string; action: string
+  userId?: string; userName?: string; timestamp: string; changes?: string
+}
+
 export interface Dashboard {
   activeWelfareCases: number; activeLegalMatters: number; monthlyExpense: number
   upcomingMeetings: number; pendingTasks: number; pendingApprovals: number

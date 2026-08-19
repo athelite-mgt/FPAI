@@ -139,7 +139,10 @@ public static class UserEndpoints
             // A pending account has no role at all; give it exactly the one chosen here.
             var existingRoles = await users.GetRolesAsync(user);
             if (existingRoles.Count > 0) await users.RemoveFromRolesAsync(user, existingRoles);
-            await users.AddToRoleAsync(user, request.Role);
+            var roleResult = await users.AddToRoleAsync(user, request.Role);
+            if (!roleResult.Succeeded)
+                return ApiHelpers.BadRequest(
+                    string.Join("; ", roleResult.Errors.Select(e => e.Description)));
 
             db.Notifications.Add(new Notification
             {
@@ -238,7 +241,10 @@ public static class UserEndpoints
                     ["user"] = result.Errors.Select(e => e.Description).ToArray()
                 });
 
-            await users.AddToRoleAsync(user, request.Role);
+            var roleResult = await users.AddToRoleAsync(user, request.Role);
+            if (!roleResult.Succeeded)
+                return ApiHelpers.BadRequest(
+                    string.Join("; ", roleResult.Errors.Select(e => e.Description)));
 
             return Results.Created($"/api/users/{user.Id}", new UserListDto(
                 user.Id, user.FullName, user.Email ?? "", user.JobTitle, user.DepartmentId,
@@ -283,8 +289,11 @@ public static class UserEndpoints
 
             if (!currentRoles.Contains(request.Role))
             {
-                await users.RemoveFromRolesAsync(user, currentRoles);
-                await users.AddToRoleAsync(user, request.Role);
+                if (currentRoles.Count > 0) await users.RemoveFromRolesAsync(user, currentRoles);
+                var roleResult = await users.AddToRoleAsync(user, request.Role);
+                if (!roleResult.Succeeded)
+                    return ApiHelpers.BadRequest(
+                        string.Join("; ", roleResult.Errors.Select(e => e.Description)));
             }
 
             // Role, department and status all live in the token, so existing sessions must end.
@@ -353,20 +362,31 @@ public static class UserEndpoints
         group.MapGet("/audit", async (
             PageQuery page,
             [FromQuery] string? entityName,
+            [FromQuery] string? action,
             [FromQuery] Guid? userId,
             AppDbContext db, CancellationToken ct) =>
         {
             var query = db.AuditLogs.AsNoTracking().AsQueryable();
             if (!string.IsNullOrWhiteSpace(entityName)) query = query.Where(a => a.EntityName == entityName);
+            if (!string.IsNullOrWhiteSpace(action)) query = query.Where(a => a.Action == action);
             if (userId is { } u) query = query.Where(a => a.UserId == u);
 
             var result = await query
                 .OrderByDescending(a => a.Timestamp)
-                .ToPagedResultAsync(page, a => new ActivityDto(
-                    a.EntityName, a.Action, a.Changes ?? "", a.UserName, a.Timestamp), ct);
+                .ToPagedResultAsync(page, a => new AuditEntryDto(
+                    a.Id, a.EntityName, a.EntityId, a.Action, a.UserId, a.UserName, a.Timestamp, a.Changes), ct);
             return Results.Ok(result);
         })
         .RequireAuthorization(Policies.UsersManage)
         .WithName("AuditTrail");
+
+        group.MapGet("/audit/entities", async (AppDbContext db, CancellationToken ct) =>
+        {
+            var names = await db.AuditLogs.AsNoTracking()
+                .Select(a => a.EntityName).Distinct().OrderBy(n => n).ToListAsync(ct);
+            return Results.Ok(names);
+        })
+        .RequireAuthorization(Policies.UsersManage)
+        .WithName("AuditEntityNames");
     }
 }

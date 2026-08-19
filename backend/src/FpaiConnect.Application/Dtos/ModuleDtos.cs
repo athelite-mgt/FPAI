@@ -448,5 +448,10 @@ public record ParticipationPoint(string Label, double ParticipationRate, int Mot
 public record ActivityDto(string EntityName, string Action, string Summary,
     string? UserName, DateTime Timestamp);
 
+/// <summary>Full audit trail row, for the admin-only Audit Log page (unlike the trimmed
+/// ActivityDto used for the dashboard's recent-activity widget).</summary>
+public record AuditEntryDto(Guid Id, string EntityName, string EntityId, string Action,
+    Guid? UserId, string? UserName, DateTime Timestamp, string? Changes);
+
 public record ReportSummaryDto(
     string Title, string Description, IReadOnlyList<CountByLabel> Rows, decimal? Total);

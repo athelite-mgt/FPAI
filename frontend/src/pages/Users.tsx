@@ -27,7 +27,7 @@ function UserModal({
     email: user?.email ?? '',
     jobTitle: user?.jobTitle ?? '',
     departmentId: user?.departmentId ?? '',
-    role: user?.roles[0] ?? 'Staff',
+    role: user?.roles?.[0] ?? 'Staff',
     status: user?.status ?? 'Invited',
     password: '',
   })
@@ -234,9 +234,9 @@ export default function Users({ embedded = false }: { embedded?: boolean } = {})
                         {row.hasGoogleLinked && <Badge className="ml-1.5">Google</Badge>}
                       </Td>
                       <Td>
-                        {row.roles.map((r) => (
+                        {row.roles?.length ? row.roles.map((r) => (
                           <Badge key={r} tone={r === 'SuperAdmin' ? 'danger' : 'info'}>{humanise(r)}</Badge>
-                        ))}
+                        )) : <span className="text-[var(--text-subtle)]">No role</span>}
                       </Td>
                       <Td className="whitespace-nowrap text-[var(--text-muted)]">{row.departmentName ?? '—'}</Td>
                       <Td className="whitespace-nowrap text-[var(--text-muted)]">{formatDate(row.createdAt)}</Td>

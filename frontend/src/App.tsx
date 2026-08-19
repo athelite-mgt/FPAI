@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './lib/auth'
 import { PreferencesProvider } from './lib/preferences'
 import { ToastProvider, Spinner, EmptyState, Button } from './components/ui'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import AppShell from './components/AppShell'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -56,7 +57,7 @@ function Protected({ roles, children }: { roles?: Role[]; children: React.ReactN
   }
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
 
-  if (roles && !roles.some((r) => user.roles.includes(r))) {
+  if (roles && !roles.some((r) => (user.roles ?? []).includes(r))) {
     return (
       <EmptyState
         title="You do not have access to this area"
@@ -140,9 +141,11 @@ export default function App() {
         <BrowserRouter>
           <AuthProvider>
             <PreferencesProvider>
-              <Suspense fallback={<Spinner />}>
-                <Router />
-              </Suspense>
+              <ErrorBoundary>
+                <Suspense fallback={<Spinner />}>
+                  <Router />
+                </Suspense>
+              </ErrorBoundary>
             </PreferencesProvider>
           </AuthProvider>
         </BrowserRouter>

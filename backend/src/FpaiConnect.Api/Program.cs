@@ -201,8 +201,13 @@ using (var scope = app.Services.CreateScope())
     else
         await db.Database.MigrateAsync();
 
+    var seeder = services.GetRequiredService<DatabaseSeeder>();
+    // Always ensure roles and departments exist, independent of demo seeding — see the
+    // XML doc on EnsureSystemDefaultsAsync for why this can't be gated behind Seed:Enabled.
+    await seeder.EnsureSystemDefaultsAsync();
+
     if (app.Configuration.GetValue("Seed:Enabled", true))
-        await services.GetRequiredService<DatabaseSeeder>().SeedAsync();
+        await seeder.SeedAsync();
 }
 
 await app.RunAsync();

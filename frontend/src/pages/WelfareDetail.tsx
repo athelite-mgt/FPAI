@@ -1,18 +1,108 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, MessageSquarePlus, Trash2 } from 'lucide-react'
+import { ArrowLeft, MessageSquarePlus, Pencil, Trash2 } from 'lucide-react'
 import { api, describeError } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { enumOptions, usePlayerLookup, useUserLookup } from '../lib/hooks'
 import { formatDate, formatDateTime, formatRelative, humanise } from '../lib/format'
 import type { WelfareCaseDetail } from '../lib/types'
 import {
-  Badge, Button, Card, CardHeader, ConfirmDialog, ErrorState, Field, Modal, PageHeader,
-  priorityTone, Spinner, statusTone, Textarea, useToast, WorkflowRail,
+  Badge, Button, Card, CardHeader, Checkbox, ConfirmDialog, ErrorState, Field, Input, Modal,
+  PageHeader, priorityTone, Select, Spinner, statusTone, Textarea, useToast, WorkflowRail,
 } from '../components/ui'
 import DocumentPanel from '../components/DocumentPanel'
 
 const FLOW = ['New', 'UnderReview', 'Assigned', 'InProgress', 'Resolved', 'Closed']
+const CATEGORIES = ['Medical', 'Contract', 'Salary', 'MentalHealth', 'Travel', 'Accommodation'] as const
+const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'] as const
+
+function EditCaseModal({
+  open, onClose, data,
+}: { open: boolean; onClose: () => void; data: WelfareCaseDetail }) {
+  const toast = useToast()
+  const queryClient = useQueryClient()
+  const players = usePlayerLookup()
+  const users = useUserLookup()
+
+  const [form, setForm] = useState({
+    title: data.title, playerId: data.playerId,
+    category: data.category as string, priority: data.priority as string,
+    assignedOfficerId: data.assignedOfficerId ?? '', description: data.description ?? '',
+    resolution: data.resolution ?? '', isDispute: data.isDispute,
+  })
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const mutation = useMutation({
+    mutationFn: async () =>
+      api.put(`/welfare/cases/${data.id}`, {
+        ...form,
+        assignedOfficerId: form.assignedOfficerId || null,
+        description: form.description || null,
+        resolution: form.resolution || null,
+      }),
+    onSuccess: () => {
+      toast.success('Case updated.')
+      void queryClient.invalidateQueries({ queryKey: ['welfare', data.id] })
+      void queryClient.invalidateQueries({ queryKey: ['welfare'] })
+      onClose()
+    },
+    onError: (e) => toast.error(describeError(e)),
+  })
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault()
+    const next: Record<string, string> = {}
+    if (!form.title.trim()) next.title = 'A short title is required.'
+    if (!form.playerId) next.playerId = 'Select the member this case concerns.'
+    setErrors(next)
+    if (Object.keys(next).length) return
+    mutation.mutate()
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} wide title="Edit case"
+      description="Changes are recorded against your name."
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" loading={mutation.isPending} onClick={submit}>Save changes</Button>
+        </>
+      }>
+      <form onSubmit={submit} className="space-y-4" noValidate>
+        <Input label="Title" required value={form.title} error={errors.title}
+          onChange={(e) => setForm({ ...form, title: e.target.value })} />
+
+        <Select label="Member" required value={form.playerId} error={errors.playerId}
+          placeholder="Select a member…"
+          options={(players.data ?? []).map((p) => ({ value: p.id, label: `${p.label} · ${p.sub}` }))}
+          onChange={(e) => setForm({ ...form, playerId: e.target.value })} />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Select label="Category" value={form.category} options={enumOptions(CATEGORIES)}
+            onChange={(e) => setForm({ ...form, category: e.target.value })} />
+          <Select label="Priority" value={form.priority} options={enumOptions(PRIORITIES)}
+            onChange={(e) => setForm({ ...form, priority: e.target.value })} />
+        </div>
+
+        <Select label="Assigned officer" value={form.assignedOfficerId} placeholder="Leave unassigned"
+          options={(users.data ?? []).map((u) => ({ value: u.id, label: u.label }))}
+          onChange={(e) => setForm({ ...form, assignedOfficerId: e.target.value })} />
+
+        <Textarea label="Description" rows={3} value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })} />
+
+        <Textarea label="Resolution" rows={3} value={form.resolution}
+          placeholder="How was this resolved, if applicable?"
+          onChange={(e) => setForm({ ...form, resolution: e.target.value })} />
+
+        <Checkbox label="This is a formal dispute rather than a welfare request"
+          checked={form.isDispute}
+          onChange={(e) => setForm({ ...form, isDispute: e.target.checked })} />
+      </form>
+    </Modal>
+  )
+}
 
 export default function WelfareDetailPage() {
   const { id = '' } = useParams()
@@ -26,6 +116,7 @@ export default function WelfareDetailPage() {
   const [transition, setTransition] = useState<string | null>(null)
   const [comment, setComment] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['welfare', id],
@@ -91,6 +182,11 @@ export default function WelfareDetailPage() {
         subtitle={data.title}
         actions={
           <>
+            {canWrite && data.status !== 'Closed' && (
+              <Button variant="secondary" icon={<Pencil className="size-4" />} onClick={() => setEditOpen(true)}>
+                Edit
+              </Button>
+            )}
             {canWrite && (
               <Button icon={<MessageSquarePlus className="size-4" />} onClick={() => setNoteOpen(true)}>
                 Add note
@@ -235,6 +331,8 @@ export default function WelfareDetailPage() {
         onConfirm={() => remove.mutate()} loading={remove.isPending} danger
         title="Delete this case?" confirmLabel="Delete case"
         message="The case is removed from active lists. The record and its audit history are retained." />
+
+      {editOpen && <EditCaseModal open onClose={() => setEditOpen(false)} data={data} />}
     </>
   )
 }

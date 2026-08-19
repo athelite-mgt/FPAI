@@ -9,6 +9,7 @@ import {
 } from '../lib/msal'
 import type { RegistrationResult } from '../lib/types'
 import { Button, Input } from '../components/ui'
+import { FpaiMark, PoweredByAthelite } from '../components/Branding'
 import { AwaitingApproval } from './Register'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
@@ -176,9 +177,7 @@ export default function Login() {
       {/* Brand panel */}
       <div className="relative hidden w-1/2 flex-col justify-between bg-[var(--chrome)] p-12 lg:flex">
         <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--accent-solid)] text-lg font-bold text-white">
-            F
-          </div>
+          <FpaiMark className="size-10" />
           <div>
             <p className="font-semibold text-white">FPAI Connect</p>
             <p className="text-xs text-[var(--chrome-muted)]">Football Players Association of India</p>
@@ -208,7 +207,10 @@ export default function Login() {
           </ul>
         </div>
 
-        <p className="text-xs text-[var(--chrome-muted)]">© {new Date().getFullYear()} FPAI. All rights reserved.</p>
+        <div className="flex items-end justify-between">
+          <p className="text-xs text-[var(--chrome-muted)]">© {new Date().getFullYear()} FPAI. All rights reserved.</p>
+          <PoweredByAthelite compact />
+        </div>
       </div>
 
       {/* Form panel */}
@@ -220,9 +222,7 @@ export default function Login() {
         ) : (
         <div className="w-full max-w-sm">
           <div className="mb-8 lg:hidden">
-            <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-[var(--accent-solid)] text-lg font-bold text-white">
-              F
-            </div>
+            <FpaiMark className="mb-3 size-10" />
             <p className="text-lg font-semibold">FPAI Connect</p>
           </div>
 
