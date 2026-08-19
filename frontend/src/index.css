@@ -325,6 +325,49 @@ body {
   animation: fpai-shimmer 1.4s infinite;
 }
 
+/* ---------------------------------------------------------------- login hero animation
+   A stylised pitch behind the crest on the login page's brand panel: a halfway line and
+   two end boxes, a centre circle that breathes, a dashed ring that turns slowly, and a
+   few drifting marker dots. Every rule below only ever animates `transform`/`opacity` —
+   nothing here ever resizes text or re-flows layout, which is what causes visible jitter
+   on compositors that can't hit 60fps consistently. */
+@keyframes fpai-hero-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.05); opacity: 0.85; }
+}
+@keyframes fpai-hero-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes fpai-hero-spin-reverse {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+@keyframes fpai-hero-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@keyframes fpai-hero-dot-fade {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.9; }
+}
+
+.fpai-hero-halo {
+  animation: fpai-hero-breathe 6s ease-in-out infinite;
+}
+.fpai-hero-ring {
+  animation: fpai-hero-spin 40s linear infinite;
+}
+.fpai-hero-ring-reverse {
+  animation: fpai-hero-spin-reverse 55s linear infinite;
+}
+.fpai-hero-crest {
+  animation: fpai-hero-float 7s ease-in-out infinite;
+}
+.fpai-hero-dot {
+  animation: fpai-hero-dot-fade 5s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

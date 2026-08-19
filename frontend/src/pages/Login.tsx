@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AlertCircle, ShieldCheck } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { AccountNotApprovedError, useAuth } from '../lib/auth'
 import { describeError } from '../lib/api'
 import {
@@ -9,7 +9,7 @@ import {
 } from '../lib/msal'
 import type { RegistrationResult } from '../lib/types'
 import { Button, Input } from '../components/ui'
-import { FpaiMark, PoweredByAthelite } from '../components/Branding'
+import { FpaiMark, LoginHero } from '../components/Branding'
 import { AwaitingApproval } from './Register'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
@@ -175,42 +175,15 @@ export default function Login() {
   return (
     <div className="flex min-h-full">
       {/* Brand panel */}
-      <div className="relative hidden w-1/2 flex-col justify-between bg-[var(--chrome)] p-12 lg:flex">
+      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-[var(--chrome)] p-12 lg:flex">
         <div className="flex items-center gap-3">
-          <FpaiMark className="size-10" />
-          <div>
-            <p className="font-semibold text-white">FPAI Connect</p>
-            <p className="text-xs text-[var(--chrome-muted)]">Football Players Association of India</p>
-          </div>
+          <FpaiMark className="size-8" />
+          <p className="font-semibold text-white">FPAI Connect</p>
         </div>
 
-        <div className="max-w-md">
-          <h2 className="text-3xl leading-tight font-semibold text-white">
-            One system for welfare, legal, finance and governance.
-          </h2>
-          <p className="mt-4 text-sm leading-relaxed text-[var(--chrome-muted)]">
-            Casework, disputes, vouchers, board motions and member records — managed in one
-            place, with every action recorded against the person who took it.
-          </p>
-          <ul className="mt-8 space-y-3">
-            {[
-              'Player welfare casework from intake to resolution',
-              'FIFA DRC, CAS, PSC and arbitration matters',
-              'Voucher and expense approval with accountant review',
-              'Board meetings, motions and recorded voting',
-            ].map((line) => (
-              <li key={line} className="flex items-start gap-2.5 text-sm text-[var(--chrome-muted)]">
-                <ShieldCheck className="mt-0.5 size-4 shrink-0 text-[var(--chrome-accent)]" aria-hidden />
-                {line}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <LoginHero />
 
-        <div className="flex items-end justify-between">
-          <p className="text-xs text-[var(--chrome-muted)]">© {new Date().getFullYear()} FPAI. All rights reserved.</p>
-          <PoweredByAthelite compact />
-        </div>
+        <p className="text-xs text-[var(--chrome-muted)]">© {new Date().getFullYear()} FPAI. All rights reserved.</p>
       </div>
 
       {/* Form panel */}
