@@ -1,6 +1,8 @@
 name: Deploy Apps to Azure
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       environment:
@@ -15,6 +17,9 @@ env:
   NODE_VERSION: "22.x"
   DOTNET_NOLOGO: "true"
   DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  # A push to main has no workflow_dispatch inputs, so it always deploys straight to prod;
+  # only a manual run can target dev/test.
+  ENVIRONMENT: ${{ inputs.environment || 'prod' }}
 
 permissions:
   id-token: write
@@ -29,7 +34,9 @@ jobs:
   deploy:
     name: Build and deploy
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    # The `environment:` key only reads github/inputs/needs/vars context, not `env`,
+    # so this repeats the fallback rather than reusing env.ENVIRONMENT.
+    environment: ${{ inputs.environment || 'prod' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,7 +50,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Build the SPA for ${{ inputs.environment }}
+      - name: Build the SPA for ${{ env.ENVIRONMENT }}
         working-directory: frontend
         run: |
           npm ci
@@ -57,29 +64,29 @@ jobs:
           mkdir -p backend/src/FpaiConnect.Api/wwwroot
           cp -r frontend/dist/* backend/src/FpaiConnect.Api/wwwroot/
 
-      - name: Publish API for ${{ inputs.environment }}
+      - name: Publish API for ${{ env.ENVIRONMENT }}
         working-directory: backend
         run: dotnet publish src/FpaiConnect.Api -c Release -o ../publish
 
-      - name: Login to Azure using OIDC - ${{ inputs.environment }}
+      - name: Login to Azure using OIDC - ${{ env.ENVIRONMENT }}
         uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Look up the web app name for ${{ inputs.environment }}
+      - name: Look up the web app name for ${{ env.ENVIRONMENT }}
         id: webapp
         run: |
-          name=$(az webapp list --resource-group "FPAI_${{ inputs.environment }}" \
+          name=$(az webapp list --resource-group "FPAI_${{ env.ENVIRONMENT }}" \
                    --query "[0].name" -o tsv)
           if [ -z "$name" ]; then
-            echo "No web app found in FPAI_${{ inputs.environment }} — run the infra workflow first." >&2
+            echo "No web app found in FPAI_${{ env.ENVIRONMENT }} — run the infra workflow first." >&2
             exit 1
           fi
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy the application - ${{ inputs.environment }}
+      - name: Deploy the application - ${{ env.ENVIRONMENT }}
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ steps.webapp.outputs.name }}
